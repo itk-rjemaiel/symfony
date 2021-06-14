@@ -50,16 +50,16 @@ class PdoSessionHandlerTest extends TestCase
 
     public function testWrongPdoErrMode()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $pdo = $this->getMemorySqlitePdo();
         $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_SILENT);
 
-        $storage = new PdoSessionHandler($pdo);
+        new PdoSessionHandler($pdo);
     }
 
     public function testInexistentTable()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $storage = new PdoSessionHandler($this->getMemorySqlitePdo(), ['db_table' => 'inexistent_table']);
         $storage->open('', 'sid');
         $storage->read('id');
@@ -69,7 +69,7 @@ class PdoSessionHandlerTest extends TestCase
 
     public function testCreateTableTwice()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $storage = new PdoSessionHandler($this->getMemorySqlitePdo());
         $storage->createTable();
     }
@@ -131,7 +131,7 @@ class PdoSessionHandlerTest extends TestCase
     public function testReadConvertsStreamToString()
     {
         $pdo = new MockPdo('pgsql');
-        $pdo->prepareResult = $this->getMockBuilder('PDOStatement')->getMock();
+        $pdo->prepareResult = $this->createMock(\PDOStatement::class);
 
         $content = 'foobar';
         $stream = $this->createStream($content);
@@ -147,13 +147,13 @@ class PdoSessionHandlerTest extends TestCase
 
     public function testReadLockedConvertsStreamToString()
     {
-        if (filter_var(ini_get('session.use_strict_mode'), FILTER_VALIDATE_BOOLEAN)) {
+        if (filter_var(ini_get('session.use_strict_mode'), \FILTER_VALIDATE_BOOLEAN)) {
             $this->markTestSkipped('Strict mode needs no locking for new sessions.');
         }
 
         $pdo = new MockPdo('pgsql');
-        $selectStmt = $this->getMockBuilder('PDOStatement')->getMock();
-        $insertStmt = $this->getMockBuilder('PDOStatement')->getMock();
+        $selectStmt = $this->createMock(\PDOStatement::class);
+        $insertStmt = $this->createMock(\PDOStatement::class);
 
         $pdo->prepareResult = function ($statement) use ($selectStmt, $insertStmt) {
             return 0 === strpos($statement, 'INSERT') ? $insertStmt : $selectStmt;
@@ -298,7 +298,7 @@ class PdoSessionHandlerTest extends TestCase
         $method = new \ReflectionMethod($storage, 'getConnection');
         $method->setAccessible(true);
 
-        $this->assertInstanceOf('\PDO', $method->invoke($storage));
+        $this->assertInstanceOf(\PDO::class, $method->invoke($storage));
     }
 
     public function testGetConnectionConnectsIfNeeded()
@@ -308,7 +308,7 @@ class PdoSessionHandlerTest extends TestCase
         $method = new \ReflectionMethod($storage, 'getConnection');
         $method->setAccessible(true);
 
-        $this->assertInstanceOf('\PDO', $method->invoke($storage));
+        $this->assertInstanceOf(\PDO::class, $method->invoke($storage));
     }
 
     /**
@@ -346,6 +346,9 @@ class PdoSessionHandlerTest extends TestCase
         yield ['mssql://localhost:56/test', 'sqlsrv:server=localhost,56;Database=test'];
     }
 
+    /**
+     * @return resource
+     */
     private function createStream($content)
     {
         $stream = tmpfile();
@@ -362,12 +365,16 @@ class MockPdo extends \PDO
     private $driverName;
     private $errorMode;
 
-    public function __construct($driverName = null, $errorMode = null)
+    public function __construct(string $driverName = null, int $errorMode = null)
     {
         $this->driverName = $driverName;
         $this->errorMode = null !== $errorMode ?: \PDO::ERRMODE_EXCEPTION;
     }
 
+    /**
+     * @return mixed
+     */
+    #[\ReturnTypeWillChange]
     public function getAttribute($attribute)
     {
         if (\PDO::ATTR_ERRMODE === $attribute) {
@@ -381,6 +388,10 @@ class MockPdo extends \PDO
         return parent::getAttribute($attribute);
     }
 
+    /**
+     * @return false|\PDOStatement
+     */
+    #[\ReturnTypeWillChange]
     public function prepare($statement, $driverOptions = [])
     {
         return \is_callable($this->prepareResult)
@@ -388,11 +399,13 @@ class MockPdo extends \PDO
             : $this->prepareResult;
     }
 
-    public function beginTransaction()
+    public function beginTransaction(): bool
     {
+        return true;
     }
 
-    public function rollBack()
+    public function rollBack(): bool
     {
+        return true;
     }
 }

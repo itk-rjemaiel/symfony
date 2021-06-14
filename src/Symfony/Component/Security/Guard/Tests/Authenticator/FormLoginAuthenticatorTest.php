@@ -12,8 +12,10 @@
 namespace Symfony\Component\Security\Guard\Tests\Authenticator;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -29,15 +31,14 @@ class FormLoginAuthenticatorTest extends TestCase
     private $requestWithSession;
     private $authenticator;
 
-    const LOGIN_URL = 'http://login';
-    const DEFAULT_SUCCESS_URL = 'http://defaultsuccess';
-    const CUSTOM_SUCCESS_URL = 'http://customsuccess';
+    private const LOGIN_URL = 'http://login';
+    private const DEFAULT_SUCCESS_URL = 'http://defaultsuccess';
 
     public function testAuthenticationFailureWithoutSession()
     {
         $failureResponse = $this->authenticator->onAuthenticationFailure($this->requestWithoutSession, new AuthenticationException());
 
-        $this->assertInstanceOf('Symfony\\Component\\HttpFoundation\\RedirectResponse', $failureResponse);
+        $this->assertInstanceOf(RedirectResponse::class, $failureResponse);
         $this->assertEquals(self::LOGIN_URL, $failureResponse->getTargetUrl());
     }
 
@@ -49,7 +50,7 @@ class FormLoginAuthenticatorTest extends TestCase
 
         $failureResponse = $this->authenticator->onAuthenticationFailure($this->requestWithSession, new AuthenticationException());
 
-        $this->assertInstanceOf('Symfony\\Component\\HttpFoundation\\RedirectResponse', $failureResponse);
+        $this->assertInstanceOf(RedirectResponse::class, $failureResponse);
         $this->assertEquals(self::LOGIN_URL, $failureResponse->getTargetUrl());
     }
 
@@ -64,7 +65,7 @@ class FormLoginAuthenticatorTest extends TestCase
     {
         $failureResponse = $this->authenticator->start($this->requestWithoutSession, new AuthenticationException());
 
-        $this->assertInstanceOf('Symfony\\Component\\HttpFoundation\\RedirectResponse', $failureResponse);
+        $this->assertInstanceOf(RedirectResponse::class, $failureResponse);
         $this->assertEquals(self::LOGIN_URL, $failureResponse->getTargetUrl());
     }
 
@@ -72,7 +73,7 @@ class FormLoginAuthenticatorTest extends TestCase
     {
         $failureResponse = $this->authenticator->start($this->requestWithSession, new AuthenticationException());
 
-        $this->assertInstanceOf('Symfony\\Component\\HttpFoundation\\RedirectResponse', $failureResponse);
+        $this->assertInstanceOf(RedirectResponse::class, $failureResponse);
         $this->assertEquals(self::LOGIN_URL, $failureResponse->getTargetUrl());
     }
 
@@ -81,9 +82,7 @@ class FormLoginAuthenticatorTest extends TestCase
         $this->requestWithoutSession = new Request([], [], [], [], [], []);
         $this->requestWithSession = new Request([], [], [], [], [], []);
 
-        $session = $this->getMockBuilder('Symfony\\Component\\HttpFoundation\\Session\\SessionInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
+        $session = $this->createMock(SessionInterface::class);
         $this->requestWithSession->setSession($session);
 
         $this->authenticator = new TestFormLoginAuthenticator();

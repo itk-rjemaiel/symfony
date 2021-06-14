@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -66,8 +67,6 @@ class ResponseListenerTest extends TestCase
 
     public function testItSubscribesToTheOnKernelResponseEvent()
     {
-        $listener = new ResponseListener();
-
         $this->assertSame([KernelEvents::RESPONSE => 'onKernelResponse'], ResponseListener::getSubscribedEvents());
     }
 
@@ -85,21 +84,13 @@ class ResponseListenerTest extends TestCase
     private function getResponse()
     {
         $response = new Response();
-        $response->headers = $this->getMockBuilder('Symfony\Component\HttpFoundation\ResponseHeaderBag')->getMock();
+        $response->headers = $this->createMock(ResponseHeaderBag::class);
 
         return $response;
     }
 
-    private function getEvent($request, $response, $type = HttpKernelInterface::MASTER_REQUEST)
+    private function getEvent(Request $request, Response $response, int $type = HttpKernelInterface::MASTER_REQUEST): ResponseEvent
     {
-        $event = $this->getMockBuilder(ResponseEvent::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $event->expects($this->any())->method('getRequest')->willReturn($request);
-        $event->expects($this->any())->method('isMasterRequest')->willReturn(HttpKernelInterface::MASTER_REQUEST === $type);
-        $event->expects($this->any())->method('getResponse')->willReturn($response);
-
-        return $event;
+        return new ResponseEvent($this->createMock(HttpKernelInterface::class), $request, $type, $response);
     }
 }

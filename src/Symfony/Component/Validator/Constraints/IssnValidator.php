@@ -32,7 +32,7 @@ class IssnValidator extends ConstraintValidator
     public function validate($value, Constraint $constraint)
     {
         if (!$constraint instanceof Issn) {
-            throw new UnexpectedTypeException($constraint, __NAMESPACE__.'\Issn');
+            throw new UnexpectedTypeException($constraint, Issn::class);
         }
 
         if (null === $value || '' === $value) {
@@ -114,10 +114,7 @@ class IssnValidator extends ConstraintValidator
         }
 
         // Calculate a checksum. "X" equals 10.
-        $checkSum = 'X' === $canonical[7]
-        || 'x' === $canonical[7]
-        ? 10
-            : $canonical[7];
+        $checkSum = 'X' === $canonical[7] || 'x' === $canonical[7] ? 10 : $canonical[7];
 
         for ($i = 0; $i < 7; ++$i) {
             // Multiply the first digit by 8, the second by 7, etc.

@@ -1,7 +1,7 @@
 {
     "name": "symfony/web-link",
     "type": "library",
-    "description": "Symfony WebLink Component",
+    "description": "Manages links between resources",
     "keywords": ["link", "psr13", "http", "http2", "preload", "prefetch", "prerender", "dns-prefetch", "push", "performance"],
     "homepage": "https://symfony.com",
     "license": "MIT",
@@ -19,7 +19,7 @@
         "psr/link-implementation": "1.0"
     },
     "require": {
-        "php": "^7.1.3",
+        "php": ">=7.1.3",
         "psr/link": "^1.0",
         "symfony/polyfill-php72": "^1.5"
     },
@@ -39,10 +39,5 @@
             "/Tests/"
         ]
     },
-    "minimum-stability": "dev",
-    "extra": {
-        "branch-alias": {
-            "dev-master": "4.4-dev"
-        }
-    }
+    "minimum-stability": "dev"
 }

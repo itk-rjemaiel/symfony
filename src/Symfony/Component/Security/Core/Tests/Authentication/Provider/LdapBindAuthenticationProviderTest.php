@@ -19,6 +19,7 @@ use Symfony\Component\Ldap\Exception\ConnectionException;
 use Symfony\Component\Ldap\LdapInterface;
 use Symfony\Component\Security\Core\Authentication\Provider\LdapBindAuthenticationProvider;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Core\Exception\BadCredentialsException;
 use Symfony\Component\Security\Core\User\User;
 use Symfony\Component\Security\Core\User\UserCheckerInterface;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
@@ -30,11 +31,11 @@ class LdapBindAuthenticationProviderTest extends TestCase
 {
     public function testEmptyPasswordShouldThrowAnException()
     {
-        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
+        $this->expectException(BadCredentialsException::class);
         $this->expectExceptionMessage('The presented password must not be empty.');
-        $userProvider = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserProviderInterface')->getMock();
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
-        $userChecker = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserCheckerInterface')->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
+        $ldap = $this->createMock(LdapInterface::class);
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap);
         $reflection = new \ReflectionMethod($provider, 'checkAuthentication');
@@ -45,11 +46,11 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testNullPasswordShouldThrowAnException()
     {
-        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
+        $this->expectException(BadCredentialsException::class);
         $this->expectExceptionMessage('The presented password must not be empty.');
-        $userProvider = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserProviderInterface')->getMock();
-        $ldap = $this->getMockBuilder('Symfony\Component\Ldap\LdapInterface')->getMock();
-        $userChecker = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserCheckerInterface')->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
+        $ldap = $this->createMock(LdapInterface::class);
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap);
         $reflection = new \ReflectionMethod($provider, 'checkAuthentication');
@@ -60,16 +61,17 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testBindFailureShouldThrowAnException()
     {
-        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
+        $this->expectException(BadCredentialsException::class);
         $this->expectExceptionMessage('The presented password is invalid.');
-        $userProvider = $this->getMockBuilder(UserProviderInterface::class)->getMock();
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
+        $ldap = $this->createMock(LdapInterface::class);
         $ldap
             ->expects($this->once())
             ->method('bind')
             ->willThrowException(new ConnectionException())
         ;
-        $userChecker = $this->getMockBuilder(UserCheckerInterface::class)->getMock();
+        $ldap->method('escape')->willReturnArgument(0);
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap);
         $reflection = new \ReflectionMethod($provider, 'checkAuthentication');
@@ -80,15 +82,15 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testRetrieveUser()
     {
-        $userProvider = $this->getMockBuilder(UserProviderInterface::class)->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
         $userProvider
             ->expects($this->once())
             ->method('loadUserByUsername')
             ->with('foo')
         ;
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
+        $ldap = $this->createMock(LdapInterface::class);
 
-        $userChecker = $this->getMockBuilder(UserCheckerInterface::class)->getMock();
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap);
         $reflection = new \ReflectionMethod($provider, 'retrieveUser');
@@ -99,18 +101,23 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testQueryForDn()
     {
-        $userProvider = $this->getMockBuilder(UserProviderInterface::class)->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
 
         $collection = new \ArrayIterator([new Entry('')]);
 
-        $query = $this->getMockBuilder(QueryInterface::class)->getMock();
+        $query = $this->createMock(QueryInterface::class);
         $query
             ->expects($this->once())
             ->method('execute')
             ->willReturn($collection)
         ;
 
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
+        $ldap = $this->createMock(LdapInterface::class);
+        $ldap
+            ->method('bind')
+            ->withConsecutive(
+                ['elsa', 'test1234A$']
+            );
         $ldap
             ->expects($this->once())
             ->method('escape')
@@ -118,16 +125,12 @@ class LdapBindAuthenticationProviderTest extends TestCase
             ->willReturn('foo')
         ;
         $ldap
-            ->expects($this->at(1))
-            ->method('bind')
-            ->with('elsa', 'test1234A$');
-        $ldap
             ->expects($this->once())
             ->method('query')
             ->with('{username}', 'foobar')
             ->willReturn($query)
         ;
-        $userChecker = $this->getMockBuilder(UserCheckerInterface::class)->getMock();
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap, '{username}', true, 'elsa', 'test1234A$');
         $provider->setQueryString('{username}bar');
@@ -139,18 +142,23 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testQueryWithUserForDn()
     {
-        $userProvider = $this->getMockBuilder(UserProviderInterface::class)->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
 
         $collection = new \ArrayIterator([new Entry('')]);
 
-        $query = $this->getMockBuilder(QueryInterface::class)->getMock();
+        $query = $this->createMock(QueryInterface::class);
         $query
             ->expects($this->once())
             ->method('execute')
             ->willReturn($collection)
         ;
 
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
+        $ldap = $this->createMock(LdapInterface::class);
+        $ldap
+            ->method('bind')
+            ->withConsecutive(
+                ['elsa', 'test1234A$']
+            );
         $ldap
             ->expects($this->once())
             ->method('escape')
@@ -158,17 +166,13 @@ class LdapBindAuthenticationProviderTest extends TestCase
             ->willReturn('foo')
         ;
         $ldap
-            ->expects($this->at(1))
-            ->method('bind')
-            ->with('elsa', 'test1234A$');
-        $ldap
             ->expects($this->once())
             ->method('query')
             ->with('{username}', 'foobar')
             ->willReturn($query)
         ;
 
-        $userChecker = $this->getMockBuilder(UserCheckerInterface::class)->getMock();
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap, '{username}', true, 'elsa', 'test1234A$');
         $provider->setQueryString('{username}bar');
@@ -180,30 +184,32 @@ class LdapBindAuthenticationProviderTest extends TestCase
 
     public function testEmptyQueryResultShouldThrowAnException()
     {
-        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
+        $this->expectException(BadCredentialsException::class);
         $this->expectExceptionMessage('The presented username is invalid.');
-        $userProvider = $this->getMockBuilder(UserProviderInterface::class)->getMock();
+        $userProvider = $this->createMock(UserProviderInterface::class);
 
-        $collection = $this->getMockBuilder(CollectionInterface::class)->getMock();
+        $collection = $this->createMock(CollectionInterface::class);
 
-        $query = $this->getMockBuilder(QueryInterface::class)->getMock();
+        $query = $this->createMock(QueryInterface::class);
         $query
             ->expects($this->once())
             ->method('execute')
             ->willReturn($collection)
         ;
 
-        $ldap = $this->getMockBuilder(LdapInterface::class)->getMock();
+        $ldap = $this->createMock(LdapInterface::class);
         $ldap
-            ->expects($this->at(1))
             ->method('bind')
-            ->with('elsa', 'test1234A$');
+            ->withConsecutive(
+                ['elsa', 'test1234A$']
+            );
         $ldap
             ->expects($this->once())
             ->method('query')
             ->willReturn($query)
         ;
-        $userChecker = $this->getMockBuilder(UserCheckerInterface::class)->getMock();
+        $ldap->method('escape')->willReturnArgument(0);
+        $userChecker = $this->createMock(UserCheckerInterface::class);
 
         $provider = new LdapBindAuthenticationProvider($userProvider, $userChecker, 'key', $ldap, '{username}', true, 'elsa', 'test1234A$');
         $provider->setQueryString('{username}bar');

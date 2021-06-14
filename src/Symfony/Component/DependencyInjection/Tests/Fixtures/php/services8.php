@@ -18,7 +18,6 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 class ProjectServiceContainer extends Container
 {
     private $parameters = [];
-    private $targetDirs = [];
 
     public function __construct()
     {
@@ -47,6 +46,9 @@ class ProjectServiceContainer extends Container
         ];
     }
 
+    /**
+     * @return array|bool|float|int|string|null
+     */
     public function getParameter($name)
     {
         $name = (string) $name;
@@ -113,6 +115,17 @@ class ProjectServiceContainer extends Container
             ],
             'binary' => 'ננננ',
             'binary-control-char' => 'This is a Bell char ',
+            'null string' => 'null',
+            'string of digits' => '123',
+            'string of digits prefixed with minus character' => '-123',
+            'true string' => 'true',
+            'false string' => 'false',
+            'binary number string' => '0b0110',
+            'numeric string' => '-1.2E2',
+            'hexadecimal number string' => '0xFF',
+            'float string' => '10100.1',
+            'positive float string' => '+10100.1',
+            'negative float string' => '-10100.1',
         ];
     }
 }

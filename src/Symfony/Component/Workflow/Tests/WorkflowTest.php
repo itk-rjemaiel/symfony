@@ -8,7 +8,9 @@ use Symfony\Component\Workflow\Definition;
 use Symfony\Component\Workflow\Event\Event;
 use Symfony\Component\Workflow\Event\GuardEvent;
 use Symfony\Component\Workflow\Event\TransitionEvent;
+use Symfony\Component\Workflow\Exception\LogicException;
 use Symfony\Component\Workflow\Exception\NotEnabledTransitionException;
+use Symfony\Component\Workflow\Exception\UndefinedTransitionException;
 use Symfony\Component\Workflow\Marking;
 use Symfony\Component\Workflow\MarkingStore\MarkingStoreInterface;
 use Symfony\Component\Workflow\MarkingStore\MethodMarkingStore;
@@ -20,22 +22,19 @@ class WorkflowTest extends TestCase
 {
     use WorkflowBuilderTrait;
 
-    /**
-     * @group legacy
-     */
     public function testGetMarkingWithInvalidStoreReturn()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('The value returned by the MarkingStore is not an instance of "Symfony\Component\Workflow\Marking" for workflow "unnamed".');
         $subject = new Subject();
-        $workflow = new Workflow(new Definition([], []), $this->getMockBuilder(MarkingStoreInterface::class)->getMock());
+        $workflow = new Workflow(new Definition([], []), $this->createMock(MarkingStoreInterface::class));
 
         $workflow->getMarking($subject);
     }
 
     public function testGetMarkingWithEmptyDefinition()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('The Marking is empty and there is no initial place for workflow "unnamed".');
         $subject = new Subject();
         $workflow = new Workflow(new Definition([], []), new MethodMarkingStore());
@@ -45,7 +44,7 @@ class WorkflowTest extends TestCase
 
     public function testGetMarkingWithImpossiblePlace()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Place "nope" is not valid for workflow "unnamed".');
         $subject = new Subject();
         $subject->setMarking(['nope' => 1]);
@@ -172,7 +171,7 @@ class WorkflowTest extends TestCase
 
     public function testBuildTransitionBlockerListReturnsUndefinedTransition()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\UndefinedTransitionException');
+        $this->expectException(UndefinedTransitionException::class);
         $this->expectExceptionMessage('Transition "404 Not Found" is not defined for workflow "unnamed".');
         $definition = $this->createSimpleWorkflowDefinition();
         $subject = new Subject();
@@ -252,7 +251,7 @@ class WorkflowTest extends TestCase
 
     public function testApplyWithNotExisingTransition()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\UndefinedTransitionException');
+        $this->expectException(UndefinedTransitionException::class);
         $this->expectExceptionMessage('Transition "404 Not Found" is not defined for workflow "unnamed".');
         $definition = $this->createComplexWorkflowDefinition();
         $subject = new Subject();
@@ -314,7 +313,7 @@ class WorkflowTest extends TestCase
         $this->assertFalse($marking->has('b'));
         $this->assertFalse($marking->has('c'));
 
-        $marking = $workflow->apply($subject, 'a_to_bc');
+        $workflow->apply($subject, 'a_to_bc');
         $marking = $workflow->apply($subject, 'b_to_c');
 
         $this->assertFalse($marking->has('a'));
@@ -406,7 +405,7 @@ class WorkflowTest extends TestCase
             'workflow.workflow_name.announce.t2',
         ];
 
-        $marking = $workflow->apply($subject, 't1');
+        $workflow->apply($subject, 't1');
 
         $this->assertSame($eventNameExpected, $eventDispatcher->dispatchedEvents);
     }
@@ -446,7 +445,7 @@ class WorkflowTest extends TestCase
             'workflow.workflow_name.announce',
         ];
 
-        $marking = $workflow->apply($subject, 'a-b');
+        $workflow->apply($subject, 'a-b');
 
         $this->assertSame($eventNameExpected, $eventDispatcher->dispatchedEvents);
     }
@@ -572,7 +571,7 @@ class WorkflowTest extends TestCase
     }
 }
 
-class EventDispatcherMock implements \Symfony\Component\EventDispatcher\EventDispatcherInterface
+class EventDispatcherMock implements \Symfony\Contracts\EventDispatcher\EventDispatcherInterface
 {
     public $dispatchedEvents = [];
 
@@ -581,33 +580,5 @@ class EventDispatcherMock implements \Symfony\Component\EventDispatcher\EventDis
         $this->dispatchedEvents[] = $eventName;
 
         return $event;
-    }
-
-    public function addListener($eventName, $listener, $priority = 0)
-    {
-    }
-
-    public function addSubscriber(\Symfony\Component\EventDispatcher\EventSubscriberInterface $subscriber)
-    {
-    }
-
-    public function removeListener($eventName, $listener)
-    {
-    }
-
-    public function removeSubscriber(\Symfony\Component\EventDispatcher\EventSubscriberInterface $subscriber)
-    {
-    }
-
-    public function getListeners($eventName = null): array
-    {
-    }
-
-    public function getListenerPriority($eventName, $listener): ?int
-    {
-    }
-
-    public function hasListeners($eventName = null): bool
-    {
     }
 }

@@ -31,7 +31,7 @@ class RegionDataGenerator extends AbstractDataGenerator
     /**
      * Source: https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes.
      */
-    private static $preferredAlpha2ToAlpha3Mapping = [
+    private const PREFERRED_ALPHA2_TO_ALPHA3_MAPPING = [
         'CD' => 'COD',
         'DE' => 'DEU',
         'FR' => 'FRA',
@@ -40,7 +40,7 @@ class RegionDataGenerator extends AbstractDataGenerator
         'YE' => 'YEM',
     ];
 
-    private static $blacklist = [
+    private const DENYLIST = [
         // Exceptional reservations
         'AC' => true, // Ascension Island
         'CP' => true, // Clipperton Island
@@ -69,7 +69,7 @@ class RegionDataGenerator extends AbstractDataGenerator
 
     public static function isValidCountryCode($region)
     {
-        if (isset(self::$blacklist[$region])) {
+        if (isset(self::DENYLIST[$region])) {
             return false;
         }
 
@@ -116,7 +116,6 @@ class RegionDataGenerator extends AbstractDataGenerator
         // isset() on \ResourceBundle returns true even if the value is null
         if (isset($localeBundle['Countries']) && null !== $localeBundle['Countries']) {
             $data = [
-                'Version' => $localeBundle['Version'],
                 'Names' => $this->generateRegionNames($localeBundle),
             ];
 
@@ -133,6 +132,7 @@ class RegionDataGenerator extends AbstractDataGenerator
      */
     protected function generateDataForRoot(BundleEntryReaderInterface $reader, string $tempDir): ?array
     {
+        return null;
     }
 
     /**
@@ -140,7 +140,6 @@ class RegionDataGenerator extends AbstractDataGenerator
      */
     protected function generateDataForMeta(BundleEntryReaderInterface $reader, string $tempDir): ?array
     {
-        $rootBundle = $reader->read($tempDir, 'root');
         $metadataBundle = $reader->read($tempDir, 'metadata');
 
         $this->regionCodes = array_unique($this->regionCodes);
@@ -152,7 +151,6 @@ class RegionDataGenerator extends AbstractDataGenerator
         asort($alpha3ToAlpha2);
 
         return [
-            'Version' => $rootBundle['Version'],
             'Regions' => $this->regionCodes,
             'Alpha2ToAlpha3' => $alpha2ToAlpha3,
             'Alpha3ToAlpha2' => $alpha3ToAlpha2,
@@ -183,13 +181,13 @@ class RegionDataGenerator extends AbstractDataGenerator
         foreach ($aliases as $alias => $data) {
             $country = $data['replacement'];
             if (2 === \strlen($country) && 3 === \strlen($alias) && 'overlong' === $data['reason']) {
-                if (isset(self::$preferredAlpha2ToAlpha3Mapping[$country])) {
+                if (isset(self::PREFERRED_ALPHA2_TO_ALPHA3_MAPPING[$country])) {
                     // Validate to prevent typos
-                    if (!isset($aliases[self::$preferredAlpha2ToAlpha3Mapping[$country]])) {
-                        throw new RuntimeException('The statically set three-letter mapping '.self::$preferredAlpha2ToAlpha3Mapping[$country].' for the country code '.$country.' seems to be invalid. Typo?');
+                    if (!isset($aliases[self::PREFERRED_ALPHA2_TO_ALPHA3_MAPPING[$country]])) {
+                        throw new RuntimeException('The statically set three-letter mapping '.self::PREFERRED_ALPHA2_TO_ALPHA3_MAPPING[$country].' for the country code '.$country.' seems to be invalid. Typo?');
                     }
 
-                    $alpha3 = self::$preferredAlpha2ToAlpha3Mapping[$country];
+                    $alpha3 = self::PREFERRED_ALPHA2_TO_ALPHA3_MAPPING[$country];
                     $alpha2 = $aliases[$alpha3]['replacement'];
 
                     if ($country !== $alpha2) {
@@ -198,7 +196,7 @@ class RegionDataGenerator extends AbstractDataGenerator
 
                     $alpha2ToAlpha3[$country] = $alpha3;
                 } elseif (isset($alpha2ToAlpha3[$country])) {
-                    throw new RuntimeException('Multiple three-letter mappings exist for the country code '.$country.'. Please add one of them to the property $preferredAlpha2ToAlpha3Mapping.');
+                    throw new RuntimeException('Multiple three-letter mappings exist for the country code '.$country.'. Please add one of them to the const PREFERRED_ALPHA2_TO_ALPHA3_MAPPING.');
                 } elseif (isset($countries[$country]) && self::isValidCountryCode($alias)) {
                     $alpha2ToAlpha3[$country] = $alias;
                 }

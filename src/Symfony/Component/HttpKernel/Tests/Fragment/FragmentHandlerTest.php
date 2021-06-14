@@ -13,8 +13,10 @@ namespace Symfony\Component\HttpKernel\Tests\Fragment;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Fragment\FragmentHandler;
+use Symfony\Component\HttpKernel\Fragment\FragmentRendererInterface;
 
 /**
  * @group time-sensitive
@@ -25,10 +27,7 @@ class FragmentHandlerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->requestStack = $this->getMockBuilder('Symfony\\Component\\HttpFoundation\\RequestStack')
-            ->disableOriginalConstructor()
-            ->getMock()
-        ;
+        $this->requestStack = $this->createMock(RequestStack::class);
         $this->requestStack
             ->expects($this->any())
             ->method('getCurrentRequest')
@@ -38,14 +37,14 @@ class FragmentHandlerTest extends TestCase
 
     public function testRenderWhenRendererDoesNotExist()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $handler = new FragmentHandler($this->requestStack);
         $handler->render('/', 'foo');
     }
 
     public function testRenderWithUnknownRenderer()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $handler = $this->getHandler($this->returnValue(new Response('foo')));
 
         $handler->render('/', 'bar');
@@ -53,7 +52,7 @@ class FragmentHandlerTest extends TestCase
 
     public function testDeliverWithUnsuccessfulResponse()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Error when rendering "http://localhost/" (Status code is 404).');
         $handler = $this->getHandler($this->returnValue(new Response('foo', 404)));
 
@@ -69,7 +68,7 @@ class FragmentHandlerTest extends TestCase
 
     protected function getHandler($returnValue, $arguments = [])
     {
-        $renderer = $this->getMockBuilder('Symfony\Component\HttpKernel\Fragment\FragmentRendererInterface')->getMock();
+        $renderer = $this->createMock(FragmentRendererInterface::class);
         $renderer
             ->expects($this->any())
             ->method('getName')

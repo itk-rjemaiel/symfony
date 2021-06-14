@@ -75,7 +75,7 @@ class LoggerTest extends TestCase
 
         $logger->info('test');
         $this->assertCount(1, $logger->getLogs());
-        list($record) = $logger->getLogs();
+        [$record] = $logger->getLogs();
 
         $this->assertEquals('test', $record['message']);
         $this->assertEquals(Logger::INFO, $record['priority']);
@@ -84,7 +84,7 @@ class LoggerTest extends TestCase
     public function testGetLogsWithDebugProcessor3()
     {
         $request = new Request();
-        $processor = $this->getMockBuilder(DebugProcessor::class)->getMock();
+        $processor = $this->createMock(DebugProcessor::class);
         $processor->expects($this->once())->method('getLogs')->with($request);
         $processor->expects($this->once())->method('countErrors')->with($request);
 
@@ -128,33 +128,12 @@ class LoggerTest extends TestCase
     /**
      * @group legacy
      * @expectedDeprecation The "Symfony\Bridge\Monolog\Logger::getLogs()" method will have a new "Request $request = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
+     * @expectedDeprecation The "Symfony\Bridge\Monolog\Logger::countErrors()" method will have a new "Request $request = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
      */
-    public function testInheritedClassCallGetLogsWithoutArgument()
+    public function testInheritedClassWithoutArgument()
     {
         $loggerChild = new ClassThatInheritLogger('test');
         $loggerChild->getLogs();
-    }
-
-    /**
-     * @group legacy
-     * @expectedDeprecation The "Symfony\Bridge\Monolog\Logger::countErrors()" method will have a new "Request $request = null" argument in version 5.0, not defining it is deprecated since Symfony 4.2.
-     */
-    public function testInheritedClassCallCountErrorsWithoutArgument()
-    {
-        $loggerChild = new ClassThatInheritLogger('test');
         $loggerChild->countErrors();
-    }
-}
-
-class ClassThatInheritLogger extends Logger
-{
-    public function getLogs(): array
-    {
-        return parent::getLogs();
-    }
-
-    public function countErrors(): int
-    {
-        return parent::countErrors();
     }
 }

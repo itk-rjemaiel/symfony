@@ -42,7 +42,7 @@ class DateTimeToArrayTransformer extends BaseDateTimeTransformer
 
         $this->fields = $fields;
         $this->pad = $pad;
-        $this->referenceDate = $referenceDate ?: new \DateTimeImmutable('1970-01-01 00:00:00');
+        $this->referenceDate = $referenceDate ?? new \DateTimeImmutable('1970-01-01 00:00:00');
     }
 
     /**
@@ -133,35 +133,35 @@ class DateTimeToArrayTransformer extends BaseDateTimeTransformer
         }
 
         if (\count($emptyFields) > 0) {
-            throw new TransformationFailedException(sprintf('The fields "%s" should not be empty', implode('", "', $emptyFields)));
+            throw new TransformationFailedException(sprintf('The fields "%s" should not be empty.', implode('", "', $emptyFields)));
         }
 
         if (isset($value['month']) && !ctype_digit((string) $value['month'])) {
-            throw new TransformationFailedException('This month is invalid');
+            throw new TransformationFailedException('This month is invalid.');
         }
 
         if (isset($value['day']) && !ctype_digit((string) $value['day'])) {
-            throw new TransformationFailedException('This day is invalid');
+            throw new TransformationFailedException('This day is invalid.');
         }
 
         if (isset($value['year']) && !ctype_digit((string) $value['year'])) {
-            throw new TransformationFailedException('This year is invalid');
+            throw new TransformationFailedException('This year is invalid.');
         }
 
         if (!empty($value['month']) && !empty($value['day']) && !empty($value['year']) && false === checkdate($value['month'], $value['day'], $value['year'])) {
-            throw new TransformationFailedException('This is an invalid date');
+            throw new TransformationFailedException('This is an invalid date.');
         }
 
         if (isset($value['hour']) && !ctype_digit((string) $value['hour'])) {
-            throw new TransformationFailedException('This hour is invalid');
+            throw new TransformationFailedException('This hour is invalid.');
         }
 
         if (isset($value['minute']) && !ctype_digit((string) $value['minute'])) {
-            throw new TransformationFailedException('This minute is invalid');
+            throw new TransformationFailedException('This minute is invalid.');
         }
 
         if (isset($value['second']) && !ctype_digit((string) $value['second'])) {
-            throw new TransformationFailedException('This second is invalid');
+            throw new TransformationFailedException('This second is invalid.');
         }
 
         try {
@@ -170,9 +170,9 @@ class DateTimeToArrayTransformer extends BaseDateTimeTransformer
                 empty($value['year']) ? $this->referenceDate->format('Y') : $value['year'],
                 empty($value['month']) ? $this->referenceDate->format('m') : $value['month'],
                 empty($value['day']) ? $this->referenceDate->format('d') : $value['day'],
-                empty($value['hour']) ? $this->referenceDate->format('H') : $value['hour'],
-                empty($value['minute']) ? $this->referenceDate->format('i') : $value['minute'],
-                empty($value['second']) ? $this->referenceDate->format('s') : $value['second']
+                $value['hour'] ?? $this->referenceDate->format('H'),
+                $value['minute'] ?? $this->referenceDate->format('i'),
+                $value['second'] ?? $this->referenceDate->format('s')
                 ),
                 new \DateTimeZone($this->outputTimezone)
             );

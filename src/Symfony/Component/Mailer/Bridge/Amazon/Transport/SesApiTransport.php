@@ -12,8 +12,9 @@
 namespace Symfony\Component\Mailer\Bridge\Amazon\Transport;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
-use Symfony\Component\Mailer\SmtpEnvelope;
+use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractApiTransport;
 use Symfony\Component\Mime\Email;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -32,7 +33,7 @@ class SesApiTransport extends AbstractApiTransport
     private $region;
 
     /**
-     * @param string $region Amazon SES region (currently one of us-east-1, us-west-2, or eu-west-1)
+     * @param string|null $region Amazon SES region
      */
     public function __construct(string $accessKey, string $secretKey, string $region = null, HttpClientInterface $client = null, EventDispatcherInterface $dispatcher = null, LoggerInterface $logger = null)
     {
@@ -48,7 +49,7 @@ class SesApiTransport extends AbstractApiTransport
         return sprintf('ses+api://%s@%s', $this->accessKey, $this->getEndpoint());
     }
 
-    protected function doSendApi(Email $email, SmtpEnvelope $envelope): ResponseInterface
+    protected function doSendApi(SentMessage $sentMessage, Email $email, Envelope $envelope): ResponseInterface
     {
         $date = gmdate('D, d M Y H:i:s e');
         $auth = sprintf('AWS3-HTTPS AWSAccessKeyId=%s,Algorithm=HmacSHA256,Signature=%s', $this->accessKey, $this->getSignature($date));
@@ -59,14 +60,17 @@ class SesApiTransport extends AbstractApiTransport
                 'Date' => $date,
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ],
-            'body' => $this->getPayload($email, $envelope),
+            'body' => $payload = $this->getPayload($email, $envelope),
         ]);
 
+        $result = new \SimpleXMLElement($response->getContent(false));
         if (200 !== $response->getStatusCode()) {
-            $error = new \SimpleXMLElement($response->getContent(false));
-
-            throw new HttpTransportException(sprintf('Unable to send an email: %s (code %s).', $error->Error->Message, $error->Error->Code), $response);
+            throw new HttpTransportException('Unable to send an email: '.$result->Error->Message.sprintf(' (code %d).', $result->Error->Code), $response);
         }
+
+        $property = $payload['Action'].'Result';
+
+        $sentMessage->setMessageId($result->{$property}->MessageId);
 
         return $response;
     }
@@ -81,7 +85,7 @@ class SesApiTransport extends AbstractApiTransport
         return base64_encode(hash_hmac('sha256', $string, $this->secretKey, true));
     }
 
-    private function getPayload(Email $email, SmtpEnvelope $envelope): array
+    private function getPayload(Email $email, Envelope $envelope): array
     {
         if ($email->getAttachments()) {
             return [
@@ -108,6 +112,9 @@ class SesApiTransport extends AbstractApiTransport
         }
         if ($email->getHtmlBody()) {
             $payload['Message.Body.Html.Data'] = $email->getHtmlBody();
+        }
+        if ($email->getReplyTo()) {
+            $payload['ReplyToAddresses.member'] = $this->stringifyAddresses($email->getReplyTo());
         }
 
         return $payload;

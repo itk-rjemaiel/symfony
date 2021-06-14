@@ -19,6 +19,7 @@ use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Form\Extension\Core\Type\PercentType;
 use Symfony\Component\Form\Extension\Core\Type\RadioType;
+use Symfony\Component\Form\Extension\Core\Type\RangeType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormError;
 
@@ -417,6 +418,21 @@ abstract class AbstractBootstrap4LayoutTest extends AbstractBootstrap3LayoutTest
         ./input[@type="checkbox"][@name="name"][@id="my&id"][@class="my&class form-check-input"][@value="foo&bar"]
         /following-sibling::label
             [.="[trans]Name[/trans]"]
+    ]
+'
+        );
+    }
+
+    public function testCheckboxRowWithHelp()
+    {
+        $form = $this->factory->createNamed('name', 'Symfony\Component\Form\Extension\Core\Type\CheckboxType');
+        $html = $this->renderRow($form->createView(), ['label' => 'foo', 'help' => 'really helpful text']);
+
+        $this->assertMatchesXpath($html,
+            '/div
+    [@class="form-group"]
+    [
+        ./small[text() = "[trans]really helpful text[/trans]"]
     ]
 '
         );
@@ -1027,6 +1043,21 @@ abstract class AbstractBootstrap4LayoutTest extends AbstractBootstrap3LayoutTest
         );
     }
 
+    public function testRadioRowWithHelp()
+    {
+        $form = $this->factory->createNamed('name', 'Symfony\Component\Form\Extension\Core\Type\RadioType', false);
+        $html = $this->renderRow($form->createView(), ['label' => 'foo', 'help' => 'really helpful text']);
+
+        $this->assertMatchesXpath($html,
+'/div
+    [@class="form-group"]
+    [
+        ./small[text() = "[trans]really helpful text[/trans]"]
+    ]
+'
+        );
+    }
+
     public function testButtonAttributeNameRepeatedIfTrue()
     {
         $form = $this->factory->createNamed('button', ButtonType::class, null, [
@@ -1164,6 +1195,41 @@ abstract class AbstractBootstrap4LayoutTest extends AbstractBootstrap3LayoutTest
                     [contains(.., "‱")]
                 ]
     ]
+'
+        );
+    }
+
+    public function testRange()
+    {
+        $form = $this->factory->createNamed('name', RangeType::class, 42, ['attr' => ['min' => 5]]);
+
+        $this->assertWidgetMatchesXpath(
+            $form->createView(),
+            ['attr' => ['class' => 'my&class']],
+'/input
+    [@type="range"]
+    [@name="name"]
+    [@value="42"]
+    [@min="5"]
+    [@class="my&class form-control-range"]
+'
+        );
+    }
+
+    public function testRangeWithMinMaxValues()
+    {
+        $form = $this->factory->createNamed('name', RangeType::class, 42, ['attr' => ['min' => 5, 'max' => 57]]);
+
+        $this->assertWidgetMatchesXpath(
+            $form->createView(),
+            ['attr' => ['class' => 'my&class']],
+'/input
+    [@type="range"]
+    [@name="name"]
+    [@value="42"]
+    [@min="5"]
+    [@max="57"]
+    [@class="my&class form-control-range"]
 '
         );
     }

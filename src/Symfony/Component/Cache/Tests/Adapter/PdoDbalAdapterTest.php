@@ -14,7 +14,6 @@ namespace Symfony\Component\Cache\Tests\Adapter;
 use Doctrine\DBAL\DriverManager;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
-use Symfony\Component\Cache\Tests\Traits\PdoPruneableTrait;
 
 /**
  * @group time-sensitive
@@ -32,8 +31,6 @@ class PdoDbalAdapterTest extends AdapterTestCase
         }
 
         self::$dbFile = tempnam(sys_get_temp_dir(), 'sf_sqlite_cache');
-
-        $pool = new PdoAdapter(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => self::$dbFile]));
     }
 
     public static function tearDownAfterClass(): void
@@ -41,7 +38,7 @@ class PdoDbalAdapterTest extends AdapterTestCase
         @unlink(self::$dbFile);
     }
 
-    public function createCachePool($defaultLifetime = 0): CacheItemPoolInterface
+    public function createCachePool(int $defaultLifetime = 0): CacheItemPoolInterface
     {
         return new PdoAdapter(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => self::$dbFile]), '', $defaultLifetime);
     }

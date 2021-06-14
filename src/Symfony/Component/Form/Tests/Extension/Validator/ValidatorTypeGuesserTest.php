@@ -12,9 +12,17 @@
 namespace Symfony\Component\Form\Tests\Extension\Validator;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\CollectionType;
+use Symfony\Component\Form\Extension\Core\Type\DateType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Validator\ValidatorTypeGuesser;
 use Symfony\Component\Form\Guess\Guess;
+use Symfony\Component\Form\Guess\TypeGuess;
 use Symfony\Component\Form\Guess\ValueGuess;
+use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\IsTrue;
@@ -33,9 +41,9 @@ use Symfony\Component\Validator\Tests\Fixtures\FakeMetadataFactory;
  */
 class ValidatorTypeGuesserTest extends TestCase
 {
-    const TEST_CLASS = 'Symfony\Component\Form\Tests\Extension\Validator\ValidatorTypeGuesserTest_TestClass';
+    public const TEST_CLASS = 'Symfony\Component\Form\Tests\Extension\Validator\ValidatorTypeGuesserTest_TestClass';
 
-    const TEST_PROPERTY = 'property';
+    public const TEST_PROPERTY = 'property';
 
     /**
      * @var ValidatorTypeGuesser
@@ -58,6 +66,35 @@ class ValidatorTypeGuesserTest extends TestCase
         $this->metadataFactory = new FakeMetadataFactory();
         $this->metadataFactory->addMetadata($this->metadata);
         $this->guesser = new ValidatorTypeGuesser($this->metadataFactory);
+    }
+
+    /**
+     * @dataProvider guessTypeProvider
+     */
+    public function testGuessType(Constraint $constraint, TypeGuess $guess)
+    {
+        $this->metadata->addPropertyConstraint(self::TEST_PROPERTY, $constraint);
+
+        $this->assertEquals($guess, $this->guesser->guessType(self::TEST_CLASS, self::TEST_PROPERTY));
+    }
+
+    public function guessTypeProvider()
+    {
+        return [
+            [new Type('array'), new TypeGuess(CollectionType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('bool'), new TypeGuess(CheckboxType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('boolean'), new TypeGuess(CheckboxType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('double'), new TypeGuess(NumberType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('float'), new TypeGuess(NumberType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('numeric'), new TypeGuess(NumberType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('real'), new TypeGuess(NumberType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('int'), new TypeGuess(IntegerType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('integer'), new TypeGuess(IntegerType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('long'), new TypeGuess(IntegerType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('string'), new TypeGuess(TextType::class, [], Guess::LOW_CONFIDENCE)],
+            [new Type(\DateTime::class), new TypeGuess(DateType::class, [], Guess::MEDIUM_CONFIDENCE)],
+            [new Type('\DateTime'), new TypeGuess(DateType::class, [], Guess::MEDIUM_CONFIDENCE)],
+        ];
     }
 
     public function guessRequiredProvider()
@@ -97,7 +134,7 @@ class ValidatorTypeGuesserTest extends TestCase
         $constraint = new Length(['max' => '2']);
 
         $result = $this->guesser->guessMaxLengthForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\ValueGuess', $result);
+        $this->assertInstanceOf(ValueGuess::class, $result);
         $this->assertEquals(2, $result->getValue());
         $this->assertEquals(Guess::HIGH_CONFIDENCE, $result->getConfidence());
     }
@@ -117,7 +154,7 @@ class ValidatorTypeGuesserTest extends TestCase
         $mimeTypes = ['image/png', 'image/jpeg'];
         $constraint = new File(['mimeTypes' => $mimeTypes]);
         $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertInstanceOf(TypeGuess::class, $typeGuess);
         $this->assertArrayHasKey('attr', $typeGuess->getOptions());
         $this->assertArrayHasKey('accept', $typeGuess->getOptions()['attr']);
         $this->assertEquals(implode(',', $mimeTypes), $typeGuess->getOptions()['attr']['accept']);
@@ -127,7 +164,7 @@ class ValidatorTypeGuesserTest extends TestCase
     {
         $constraint = new File();
         $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertInstanceOf(TypeGuess::class, $typeGuess);
         $this->assertArrayNotHasKey('attr', $typeGuess->getOptions());
     }
 
@@ -135,7 +172,7 @@ class ValidatorTypeGuesserTest extends TestCase
     {
         $constraint = new File(['mimeTypes' => 'image/*']);
         $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertInstanceOf(TypeGuess::class, $typeGuess);
         $this->assertArrayHasKey('attr', $typeGuess->getOptions());
         $this->assertArrayHasKey('accept', $typeGuess->getOptions()['attr']);
         $this->assertEquals('image/*', $typeGuess->getOptions()['attr']['accept']);
@@ -145,7 +182,7 @@ class ValidatorTypeGuesserTest extends TestCase
     {
         $constraint = new File(['mimeTypes' => '']);
         $typeGuess = $this->guesser->guessTypeForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\TypeGuess', $typeGuess);
+        $this->assertInstanceOf(TypeGuess::class, $typeGuess);
         $this->assertArrayNotHasKey('attr', $typeGuess->getOptions());
     }
 
@@ -167,7 +204,7 @@ class ValidatorTypeGuesserTest extends TestCase
         $constraint = new Type($type);
 
         $result = $this->guesser->guessMaxLengthForConstraint($constraint);
-        $this->assertInstanceOf('Symfony\Component\Form\Guess\ValueGuess', $result);
+        $this->assertInstanceOf(ValueGuess::class, $result);
         $this->assertNull($result->getValue());
         $this->assertEquals(Guess::MEDIUM_CONFIDENCE, $result->getConfidence());
     }

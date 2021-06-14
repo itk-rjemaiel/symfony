@@ -20,7 +20,7 @@ use Twig\Node\Node;
 use Twig\Node\TextNode;
 
 // BC/FC with namespaced Twig
-class_exists('Twig\Node\Expression\ArrayExpression');
+class_exists(ArrayExpression::class);
 
 /**
  * @author Fabien Potencier <fabien@symfony.com>
@@ -48,6 +48,9 @@ class TransNode extends Node
         parent::__construct($nodes, [], $lineno, $tag);
     }
 
+    /**
+     * @return void
+     */
     public function compile(Compiler $compiler)
     {
         $compiler->addDebugInfo($this);
@@ -57,9 +60,7 @@ class TransNode extends Node
             $defaults = $this->getNode('vars');
             $vars = null;
         }
-        list($msg, $defaults) = $this->compileString($this->getNode('body'), $defaults, (bool) $vars);
-
-        $method = !$this->hasNode('count') ? 'trans' : 'transChoice';
+        [$msg, $defaults] = $this->compileString($this->getNode('body'), $defaults, (bool) $vars);
 
         $compiler
             ->write('echo $this->env->getExtension(\'Symfony\Bridge\Twig\Extension\TranslationExtension\')->trans(')

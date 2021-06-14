@@ -16,12 +16,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Monolog\Processor\WebProcessor;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 
 class WebProcessorTest extends TestCase
 {
     public function testUsesRequestServerData()
     {
-        list($event, $server) = $this->createRequestEvent();
+        [$event, $server] = $this->createRequestEvent();
 
         $processor = new WebProcessor();
         $processor->onKernelRequest($event);
@@ -38,7 +39,7 @@ class WebProcessorTest extends TestCase
     public function testUseRequestClientIp()
     {
         Request::setTrustedProxies(['192.168.0.1'], Request::HEADER_X_FORWARDED_ALL);
-        list($event, $server) = $this->createRequestEvent(['X_FORWARDED_FOR' => '192.168.0.2']);
+        [$event, $server] = $this->createRequestEvent(['X_FORWARDED_FOR' => '192.168.0.2']);
 
         $processor = new WebProcessor();
         $processor->onKernelRequest($event);
@@ -60,7 +61,7 @@ class WebProcessorTest extends TestCase
             $this->markTestSkipped('WebProcessor of the installed Monolog version does not support $extraFields parameter');
         }
 
-        list($event, $server) = $this->createRequestEvent();
+        [$event, $server] = $this->createRequestEvent();
 
         $processor = new WebProcessor(['url', 'referrer']);
         $processor->onKernelRequest($event);
@@ -71,7 +72,7 @@ class WebProcessorTest extends TestCase
         $this->assertEquals($server['HTTP_REFERER'], $record['extra']['referrer']);
     }
 
-    private function createRequestEvent($additionalServerParameters = []): array
+    private function createRequestEvent(array $additionalServerParameters = []): array
     {
         $server = array_merge(
             [
@@ -88,15 +89,7 @@ class WebProcessorTest extends TestCase
         $request->server->replace($server);
         $request->headers->replace($server);
 
-        $event = $this->getMockBuilder(RequestEvent::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $event->expects($this->any())
-            ->method('isMasterRequest')
-            ->willReturn(true);
-        $event->expects($this->any())
-            ->method('getRequest')
-            ->willReturn($request);
+        $event = new RequestEvent($this->createMock(HttpKernelInterface::class), $request, HttpKernelInterface::MASTER_REQUEST);
 
         return [$event, $server];
     }
@@ -116,7 +109,7 @@ class WebProcessorTest extends TestCase
 
     private function isExtraFieldsSupported()
     {
-        $monologWebProcessorClass = new \ReflectionClass('Monolog\Processor\WebProcessor');
+        $monologWebProcessorClass = new \ReflectionClass(\Monolog\Processor\WebProcessor::class);
 
         foreach ($monologWebProcessorClass->getConstructor()->getParameters() as $parameter) {
             if ('extraFields' === $parameter->getName()) {

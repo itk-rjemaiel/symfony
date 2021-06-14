@@ -54,7 +54,7 @@ class ObjectNormalizer extends AbstractObjectNormalizer
      */
     public function hasCacheableSupportsMethod(): bool
     {
-        return __CLASS__ === \get_class($this);
+        return __CLASS__ === static::class;
     }
 
     /**
@@ -103,8 +103,26 @@ class ObjectNormalizer extends AbstractObjectNormalizer
             }
         }
 
+        $checkPropertyInitialization = \PHP_VERSION_ID >= 70400;
+
         // properties
-        foreach ($reflClass->getProperties(\ReflectionProperty::IS_PUBLIC) as $reflProperty) {
+        foreach ($reflClass->getProperties() as $reflProperty) {
+            $isPublic = $reflProperty->isPublic();
+
+            if ($checkPropertyInitialization) {
+                if (!$isPublic) {
+                    $reflProperty->setAccessible(true);
+                }
+                if (!$reflProperty->isInitialized($object)) {
+                    unset($attributes[$reflProperty->name]);
+                    continue;
+                }
+            }
+
+            if (!$isPublic) {
+                continue;
+            }
+
             if ($reflProperty->isStatic() || !$this->isAllowedAttribute($object, $reflProperty->name, $format, $context)) {
                 continue;
             }

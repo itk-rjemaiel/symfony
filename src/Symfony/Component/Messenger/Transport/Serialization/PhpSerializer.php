@@ -29,6 +29,10 @@ class PhpSerializer implements SerializerInterface
             throw new MessageDecodingFailedException('Encoded envelope should have at least a "body".');
         }
 
+        if (false === strpos($encodedEnvelope['body'], '}', -1)) {
+            $encodedEnvelope['body'] = base64_decode($encodedEnvelope['body']);
+        }
+
         $serializeEnvelope = stripslashes($encodedEnvelope['body']);
 
         return $this->safelyUnserialize($serializeEnvelope);
@@ -43,6 +47,10 @@ class PhpSerializer implements SerializerInterface
 
         $body = addslashes(serialize($envelope));
 
+        if (!preg_match('//u', $body)) {
+            $body = base64_encode($body);
+        }
+
         return [
             'body' => $body,
         ];
@@ -50,7 +58,6 @@ class PhpSerializer implements SerializerInterface
 
     private function safelyUnserialize(string $contents)
     {
-        $e = null;
         $signalingException = new MessageDecodingFailedException(sprintf('Could not decode message using PHP serialization: %s.', $contents));
         $prevUnserializeHandler = ini_set('unserialize_callback_func', self::class.'::handleUnserializeCallback');
         $prevErrorHandler = set_error_handler(function ($type, $msg, $file, $line, $context = []) use (&$prevErrorHandler, $signalingException) {

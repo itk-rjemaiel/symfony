@@ -12,11 +12,11 @@
 namespace Symfony\Component\Security\Core\Tests\Authorization;
 
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
 use Symfony\Component\Security\Core\Authorization\DebugAccessDecisionManager;
 use Symfony\Component\Security\Core\Authorization\TraceableAccessDecisionManager;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\Security\Core\Tests\Fixtures\TokenInterface;
 
 class TraceableAccessDecisionManagerTest extends TestCase
 {
@@ -40,7 +40,7 @@ class TraceableAccessDecisionManagerTest extends TestCase
             ->with($token, $attributes, $object)
             ->willReturnCallback(function ($token, $attributes, $object) use ($voterVotes, $adm, $result) {
                 foreach ($voterVotes as $voterVote) {
-                    list($voter, $vote) = $voterVote;
+                    [$voter, $vote] = $voterVote;
                     $adm->addVoterVote($voter, $attributes, $vote);
                 }
 
@@ -127,7 +127,7 @@ class TraceableAccessDecisionManagerTest extends TestCase
         yield [
             [[
                 'attributes' => [new \stdClass()],
-                'object' => $x = fopen(__FILE__, 'rb'),
+                'object' => $x = fopen(__FILE__, 'r'),
                 'result' => true,
                 'voterDetails' => [],
             ]],
@@ -243,7 +243,7 @@ class TraceableAccessDecisionManagerTest extends TestCase
                 return $vote;
             });
 
-        $token = $this->getMockBuilder(TokenInterface::class)->getMock();
+        $token = $this->createMock(TokenInterface::class);
         $sut->decide($token, ['attr1'], null);
         $sut->decide($token, ['attr2'], $obj = new \stdClass());
 

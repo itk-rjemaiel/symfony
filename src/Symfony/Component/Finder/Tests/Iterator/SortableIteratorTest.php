@@ -21,7 +21,7 @@ class SortableIteratorTest extends RealIteratorTestCase
             new SortableIterator(new Iterator([]), 'foobar');
             $this->fail('__construct() throws an \InvalidArgumentException exception if the mode is not valid');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('InvalidArgumentException', $e, '__construct() throws an \InvalidArgumentException exception if the mode is not valid');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '__construct() throws an \InvalidArgumentException exception if the mode is not valid');
         }
     }
 
@@ -35,9 +35,10 @@ class SortableIteratorTest extends RealIteratorTestCase
                 case SortableIterator::SORT_BY_ACCESSED_TIME:
                     touch(self::toAbsolute('.git'));
                     sleep(1);
-                    file_get_contents(self::toAbsolute('.bar'));
+                    touch(self::toAbsolute('.bar'), time());
                     break;
                 case SortableIterator::SORT_BY_CHANGED_TIME:
+                    sleep(1);
                     file_put_contents(self::toAbsolute('test.php'), 'foo');
                     sleep(1);
                     file_put_contents(self::toAbsolute('test.py'), 'foo');

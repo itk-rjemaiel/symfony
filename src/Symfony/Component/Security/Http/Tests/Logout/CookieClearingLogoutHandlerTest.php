@@ -12,10 +12,12 @@
 namespace Symfony\Component\Security\Http\Tests\Logout;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Security\Http\Logout\CookieClearingLogoutHandler;
+use Symfony\Component\Security\Http\Tests\Fixtures\TokenInterface;
 
 class CookieClearingLogoutHandlerTest extends TestCase
 {
@@ -23,9 +25,9 @@ class CookieClearingLogoutHandlerTest extends TestCase
     {
         $request = new Request();
         $response = new Response();
-        $token = $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock();
+        $token = $this->createMock(TokenInterface::class);
 
-        $handler = new CookieClearingLogoutHandler(['foo' => ['path' => '/foo', 'domain' => 'foo.foo'], 'foo2' => ['path' => null, 'domain' => null]]);
+        $handler = new CookieClearingLogoutHandler(['foo' => ['path' => '/foo', 'domain' => 'foo.foo', 'secure' => true, 'samesite' => Cookie::SAMESITE_STRICT], 'foo2' => ['path' => null, 'domain' => null]]);
 
         $cookies = $response->headers->getCookies();
         $this->assertCount(0, $cookies);
@@ -39,12 +41,16 @@ class CookieClearingLogoutHandlerTest extends TestCase
         $this->assertEquals('foo', $cookie->getName());
         $this->assertEquals('/foo', $cookie->getPath());
         $this->assertEquals('foo.foo', $cookie->getDomain());
+        $this->assertEquals(Cookie::SAMESITE_STRICT, $cookie->getSameSite());
+        $this->assertTrue($cookie->isSecure());
         $this->assertTrue($cookie->isCleared());
 
         $cookie = $cookies['']['/']['foo2'];
         $this->assertStringStartsWith('foo2', $cookie->getName());
         $this->assertEquals('/', $cookie->getPath());
         $this->assertNull($cookie->getDomain());
+        $this->assertNull($cookie->getSameSite());
+        $this->assertFalse($cookie->isSecure());
         $this->assertTrue($cookie->isCleared());
     }
 }

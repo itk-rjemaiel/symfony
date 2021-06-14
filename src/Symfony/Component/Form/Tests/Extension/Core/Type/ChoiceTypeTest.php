@@ -13,10 +13,12 @@ namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
 use Symfony\Component\Form\ChoiceList\View\ChoiceGroupView;
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
 
 class ChoiceTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\ChoiceType';
+    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\ChoiceType';
 
     private $choices = [
         'Bernhard' => 'a',
@@ -82,7 +84,7 @@ class ChoiceTypeTest extends BaseTypeTest
 
     public function testChoicesOptionExpectsArrayOrTraversable()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'choices' => new \stdClass(),
         ]);
@@ -90,7 +92,7 @@ class ChoiceTypeTest extends BaseTypeTest
 
     public function testChoiceLoaderOptionExpectsChoiceLoaderInterface()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'choice_loader' => new \stdClass(),
         ]);
@@ -98,7 +100,7 @@ class ChoiceTypeTest extends BaseTypeTest
 
     public function testChoiceListAndChoicesCanBeEmpty()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\FormInterface', $this->factory->create(static::TESTED_TYPE, null, []));
+        $this->assertInstanceOf(FormInterface::class, $this->factory->create(static::TESTED_TYPE, null, []));
     }
 
     public function testExpandedChoicesOptionsTurnIntoChildren()
@@ -806,9 +808,9 @@ class ChoiceTypeTest extends BaseTypeTest
 
         $form->submit(['a', 'foobar']);
 
-        $this->assertNull($form->getData());
-        $this->assertEquals(['a', 'foobar'], $form->getViewData());
-        $this->assertFalse($form->isSynchronized());
+        $this->assertEquals(['a'], $form->getData());
+        $this->assertEquals(['a'], $form->getViewData());
+        $this->assertFalse($form->isValid());
     }
 
     public function testSubmitMultipleNonExpandedObjectChoices()
@@ -1285,6 +1287,20 @@ class ChoiceTypeTest extends BaseTypeTest
         $this->assertNull($form[4]->getViewData());
     }
 
+    public function testSubmitSingleExpandedClearMissingFalse()
+    {
+        $form = $this->factory->create(self::TESTED_TYPE, 'foo', [
+            'choices' => [
+                'foo label' => 'foo',
+                'bar label' => 'bar',
+            ],
+            'expanded' => true,
+        ]);
+        $form->submit('bar', false);
+
+        $this->assertSame('bar', $form->getData());
+    }
+
     public function testSubmitMultipleExpanded()
     {
         $form = $this->factory->create(static::TESTED_TYPE, null, [
@@ -1349,17 +1365,17 @@ class ChoiceTypeTest extends BaseTypeTest
 
         $form->submit(['a', 'foobar']);
 
-        $this->assertNull($form->getData());
-        $this->assertSame(['a', 'foobar'], $form->getViewData());
+        $this->assertSame(['a'], $form->getData());
+        $this->assertSame(['a'], $form->getViewData());
         $this->assertEmpty($form->getExtraData());
-        $this->assertFalse($form->isSynchronized());
+        $this->assertFalse($form->isValid());
 
-        $this->assertFalse($form[0]->getData());
+        $this->assertTrue($form[0]->getData());
         $this->assertFalse($form[1]->getData());
         $this->assertFalse($form[2]->getData());
         $this->assertFalse($form[3]->getData());
         $this->assertFalse($form[4]->getData());
-        $this->assertNull($form[0]->getViewData());
+        $this->assertSame('a', $form[0]->getViewData());
         $this->assertNull($form[1]->getViewData());
         $this->assertNull($form[2]->getViewData());
         $this->assertNull($form[3]->getViewData());
@@ -1802,7 +1818,8 @@ class ChoiceTypeTest extends BaseTypeTest
     // https://github.com/symfony/symfony/issues/3298
     public function testInitializeWithEmptyChoices()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\FormInterface', $this->factory->createNamed('name', static::TESTED_TYPE, null, [
+        $this->assertInstanceOf(
+            FormInterface::class, $this->factory->createNamed('name', static::TESTED_TYPE, null, [
             'choices' => [],
         ]));
     }
@@ -1997,6 +2014,24 @@ class ChoiceTypeTest extends BaseTypeTest
         $this->assertEquals('_09name', $view->vars['full_name']);
     }
 
+    public function testSubFormTranslationDomain()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'label' => 'label',
+            'translation_domain' => 'label_translation_domain',
+            'choices' => [
+                'choice1' => true,
+                'choice2' => false,
+            ],
+            'choice_translation_domain' => 'choice_translation_domain',
+            'expanded' => true,
+        ])->createView();
+
+        $this->assertCount(2, $form->children);
+        $this->assertSame('choice_translation_domain', $form->children[0]->vars['translation_domain']);
+        $this->assertSame('choice_translation_domain', $form->children[1]->vars['translation_domain']);
+    }
+
     /**
      * @dataProvider provideTrimCases
      */
@@ -2015,8 +2050,13 @@ class ChoiceTypeTest extends BaseTypeTest
         $form->submit($multiple ? (array) $submittedData : $submittedData);
 
         // When the choice does not exist the transformation fails
-        $this->assertFalse($form->isSynchronized());
-        $this->assertNull($form->getData());
+        $this->assertFalse($form->isValid());
+
+        if ($multiple) {
+            $this->assertSame([], $form->getData());
+        } else {
+            $this->assertNull($form->getData());
+        }
     }
 
     /**
@@ -2047,6 +2087,47 @@ class ChoiceTypeTest extends BaseTypeTest
             'Multiple' => [true, false],
             'Simple expanded' => [false, true],
             'Multiple expanded' => [true, true],
+        ];
+    }
+
+    /**
+     * @dataProvider expandedIsEmptyWhenNoRealChoiceIsSelectedProvider
+     */
+    public function testExpandedIsEmptyWhenNoRealChoiceIsSelected($expected, $submittedData, $multiple, $required, $placeholder)
+    {
+        $options = [
+            'expanded' => true,
+            'choices' => [
+                'foo' => 'bar',
+            ],
+            'multiple' => $multiple,
+            'required' => $required,
+        ];
+
+        if (!$multiple) {
+            $options['placeholder'] = $placeholder;
+        }
+
+        $form = $this->factory->create(static::TESTED_TYPE, null, $options);
+
+        $form->submit($submittedData);
+
+        $this->assertSame($expected, $form->isEmpty());
+    }
+
+    public function expandedIsEmptyWhenNoRealChoiceIsSelectedProvider()
+    {
+        // Some invalid cases are voluntarily not tested:
+        //   - multiple with placeholder
+        //   - required with placeholder
+        return [
+            'Nothing submitted / single / not required / without a placeholder -> should be empty' => [true, null, false, false, null],
+            'Nothing submitted / single / not required / with a placeholder -> should not be empty' => [false, null, false, false, 'ccc'], // It falls back on the placeholder
+            'Nothing submitted / single / required / without a placeholder -> should be empty' => [true, null, false, true, null],
+            'Nothing submitted / single / required / with a placeholder -> should be empty' => [true, null, false, true, 'ccc'],
+            'Nothing submitted / multiple / not required / without a placeholder -> should be empty' => [true, null, true, false, null],
+            'Nothing submitted / multiple / required / without a placeholder -> should be empty' => [true, null, true, true, null],
+            'Placeholder submitted / single / not required / with a placeholder -> should not be empty' => [false, '', false, false, 'ccc'], // The placeholder is a selected value
         ];
     }
 }

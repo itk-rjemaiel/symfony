@@ -9,7 +9,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Symfony\Component\Ldap\Tests;
+namespace Symfony\Component\Ldap\Tests\Adapter\ExtLdap;
 
 use Symfony\Component\Ldap\Adapter\ExtLdap\Adapter;
 use Symfony\Component\Ldap\Adapter\ExtLdap\Collection;
@@ -18,23 +18,19 @@ use Symfony\Component\Ldap\Entry;
 use Symfony\Component\Ldap\Exception\LdapException;
 use Symfony\Component\Ldap\Exception\NotBoundException;
 use Symfony\Component\Ldap\LdapInterface;
+use Symfony\Component\Ldap\Tests\LdapTestCase;
 
 /**
  * @requires extension ldap
+ * @group integration
  */
 class AdapterTest extends LdapTestCase
 {
-    const PAGINATION_REQUIRED_CONFIG = [
-        'options' => [
-            'protocol_version' => 3,
-        ],
-    ];
-
     public function testLdapEscape()
     {
         $ldap = new Adapter();
 
-        $this->assertEquals('\20foo\3dbar\0d(baz)*\20', $ldap->escape(" foo=bar\r(baz)* ", null, LdapInterface::ESCAPE_DN));
+        $this->assertEquals('\20foo\3dbar\0d(baz)*\20', $ldap->escape(" foo=bar\r(baz)* ", '', LdapInterface::ESCAPE_DN));
     }
 
     /**
@@ -93,12 +89,12 @@ class AdapterTest extends LdapTestCase
         $ldap->getConnection()->bind('cn=admin,dc=symfony,dc=com', 'symfony');
 
         $query = $ldap->createQuery('cn=Fabien Potencier,dc=symfony,dc=com', '(objectclass=*)', [
-           'scope' => Query::SCOPE_BASE,
+            'scope' => Query::SCOPE_BASE,
         ]);
         $result = $query->execute();
 
         $entry = $result[0];
-        $this->assertEquals($result->count(), 1);
+        $this->assertEquals(1, $result->count());
         $this->assertEquals(['Fabien Potencier'], $entry->getAttribute('cn'));
     }
 
@@ -115,13 +111,13 @@ class AdapterTest extends LdapTestCase
         $subtree_count = $ldap->createQuery('ou=Components,dc=symfony,dc=com', '(objectclass=*)')->execute()->count();
 
         $this->assertNotEquals($one_level_result->count(), $subtree_count);
-        $this->assertEquals($one_level_result->count(), 1);
-        $this->assertEquals($one_level_result[0]->getAttribute('ou'), ['Ldap']);
+        $this->assertEquals(1, $one_level_result->count());
+        $this->assertEquals(['Ldap'], $one_level_result[0]->getAttribute('ou'));
     }
 
     public function testLdapPagination()
     {
-        $ldap = new Adapter(array_merge($this->getLdapConfig(), static::PAGINATION_REQUIRED_CONFIG));
+        $ldap = new Adapter($this->getLdapConfig());
         $ldap->getConnection()->bind('cn=admin,dc=symfony,dc=com', 'symfony');
         $entries = $this->setupTestUsers($ldap);
 
@@ -152,7 +148,7 @@ class AdapterTest extends LdapTestCase
             $this->assertEquals(\count($fully_paged_query->getResources()), 1);
             $this->assertEquals(\count($paged_query->getResources()), 5);
 
-            if (PHP_MAJOR_VERSION > 7 || (PHP_MAJOR_VERSION == 7 && PHP_MINOR_VERSION >= 2)) {
+            if (\PHP_VERSION_ID >= 70200) {
                 // This last query is to ensure that we haven't botched the state of our connection
                 // by not resetting pagination properly. extldap <= PHP 7.1 do not implement the necessary
                 // bits to work around an implementation flaw, so we simply can't guarantee this to work there.
@@ -204,7 +200,7 @@ class AdapterTest extends LdapTestCase
 
     public function testLdapPaginationLimits()
     {
-        $ldap = new Adapter(array_merge($this->getLdapConfig(), static::PAGINATION_REQUIRED_CONFIG));
+        $ldap = new Adapter($this->getLdapConfig());
         $ldap->getConnection()->bind('cn=admin,dc=symfony,dc=com', 'symfony');
 
         $entries = $this->setupTestUsers($ldap);

@@ -18,14 +18,14 @@ class RouteTest extends TestCase
 {
     public function testInvalidRouteParameter()
     {
-        $this->expectException('BadMethodCallException');
-        $route = new Route(['foo' => 'bar']);
+        $this->expectException(\BadMethodCallException::class);
+        new Route(['foo' => 'bar']);
     }
 
     public function testTryingToSetLocalesDirectly()
     {
-        $this->expectException('BadMethodCallException');
-        $route = new Route(['locales' => ['nl' => 'bar']]);
+        $this->expectException(\BadMethodCallException::class);
+        new Route(['locales' => ['nl' => 'bar']]);
     }
 
     /**

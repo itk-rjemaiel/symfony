@@ -20,33 +20,33 @@ class JsonManifestVersionStrategyTest extends TestCase
     {
         $strategy = $this->createStrategy('manifest-valid.json');
 
-        $this->assertEquals('main.123abc.js', $strategy->getVersion('main.js'));
+        $this->assertSame('main.123abc.js', $strategy->getVersion('main.js'));
     }
 
     public function testApplyVersion()
     {
         $strategy = $this->createStrategy('manifest-valid.json');
 
-        $this->assertEquals('css/styles.555def.css', $strategy->getVersion('css/styles.css'));
+        $this->assertSame('css/styles.555def.css', $strategy->applyVersion('css/styles.css'));
     }
 
     public function testApplyVersionWhenKeyDoesNotExistInManifest()
     {
         $strategy = $this->createStrategy('manifest-valid.json');
 
-        $this->assertEquals('css/other.css', $strategy->getVersion('css/other.css'));
+        $this->assertSame('css/other.css', $strategy->applyVersion('css/other.css'));
     }
 
     public function testMissingManifestFileThrowsException()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $strategy = $this->createStrategy('non-existent-file.json');
         $strategy->getVersion('main.js');
     }
 
     public function testManifestFileWithBadJSONThrowsException()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Error parsing JSON');
         $strategy = $this->createStrategy('manifest-invalid.json');
         $strategy->getVersion('main.js');

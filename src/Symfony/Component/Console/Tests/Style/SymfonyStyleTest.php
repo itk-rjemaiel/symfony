@@ -14,8 +14,10 @@ namespace Symfony\Component\Console\Tests\Style;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -81,9 +83,9 @@ class SymfonyStyleTest extends TestCase
 
     public function testGetErrorStyle()
     {
-        $input = $this->getMockBuilder(InputInterface::class)->getMock();
+        $input = $this->createMock(InputInterface::class);
 
-        $errorOutput = $this->getMockBuilder(OutputInterface::class)->getMock();
+        $errorOutput = $this->createMock(OutputInterface::class);
         $errorOutput
             ->method('getFormatter')
             ->willReturn(new OutputFormatter());
@@ -91,7 +93,7 @@ class SymfonyStyleTest extends TestCase
             ->expects($this->once())
             ->method('write');
 
-        $output = $this->getMockBuilder(ConsoleOutputInterface::class)->getMock();
+        $output = $this->createMock(ConsoleOutputInterface::class);
         $output
             ->method('getFormatter')
             ->willReturn(new OutputFormatter());
@@ -106,13 +108,26 @@ class SymfonyStyleTest extends TestCase
 
     public function testGetErrorStyleUsesTheCurrentOutputIfNoErrorOutputIsAvailable()
     {
-        $output = $this->getMockBuilder(OutputInterface::class)->getMock();
+        $output = $this->createMock(OutputInterface::class);
         $output
             ->method('getFormatter')
             ->willReturn(new OutputFormatter());
 
-        $style = new SymfonyStyle($this->getMockBuilder(InputInterface::class)->getMock(), $output);
+        $style = new SymfonyStyle($this->createMock(InputInterface::class), $output);
 
         $this->assertInstanceOf(SymfonyStyle::class, $style->getErrorStyle());
+    }
+
+    public function testMemoryConsumption()
+    {
+        $io = new SymfonyStyle(new ArrayInput([]), new NullOutput());
+        $str = 'teststr';
+        $io->writeln($str, SymfonyStyle::VERBOSITY_QUIET);
+        $start = memory_get_usage();
+        for ($i = 0; $i < 100; ++$i) {
+            $io->writeln($str, SymfonyStyle::VERBOSITY_QUIET);
+        }
+
+        $this->assertSame(0, memory_get_usage() - $start);
     }
 }

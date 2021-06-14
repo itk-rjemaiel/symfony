@@ -13,12 +13,19 @@ namespace Symfony\Component\Form\Tests;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Form\AbstractTypeExtension;
+use Symfony\Component\Form\DataMapperInterface;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormConfigInterface;
+use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormTypeExtensionInterface;
 use Symfony\Component\Form\FormTypeInterface;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\Form\ResolvedFormType;
+use Symfony\Component\Form\Test\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\Exception\MissingOptionsException;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
@@ -73,9 +80,9 @@ class ResolvedFormTypeTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dispatcher = $this->getMockBuilder('Symfony\Component\EventDispatcher\EventDispatcherInterface')->getMock();
-        $this->factory = $this->getMockBuilder('Symfony\Component\Form\FormFactoryInterface')->getMock();
-        $this->dataMapper = $this->getMockBuilder('Symfony\Component\Form\DataMapperInterface')->getMock();
+        $this->dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->factory = $this->createMock(FormFactoryInterface::class);
+        $this->dataMapper = $this->createMock(DataMapperInterface::class);
         $this->parentType = $this->getMockFormType();
         $this->type = $this->getMockFormType();
         $this->extension1 = $this->getMockFormTypeExtension();
@@ -129,9 +136,9 @@ class ResolvedFormTypeTest extends TestCase
     {
         $givenOptions = ['a' => 'a_custom', 'c' => 'c_custom'];
         $resolvedOptions = ['a' => 'a_custom', 'b' => 'b_default', 'c' => 'c_custom', 'd' => 'd_default'];
-        $optionsResolver = $this->getMockBuilder('Symfony\Component\OptionsResolver\OptionsResolver')->getMock();
+        $optionsResolver = $this->createMock(OptionsResolver::class);
 
-        $this->resolvedType = $this->getMockBuilder('Symfony\Component\Form\ResolvedFormType')
+        $this->resolvedType = $this->getMockBuilder(ResolvedFormType::class)
             ->setConstructorArgs([$this->type, [$this->extension1, $this->extension2], $this->parentResolvedType])
             ->setMethods(['getOptionsResolver'])
             ->getMock();
@@ -156,10 +163,10 @@ class ResolvedFormTypeTest extends TestCase
     public function testCreateBuilderWithDataClassOption()
     {
         $givenOptions = ['data_class' => 'Foo'];
-        $resolvedOptions = ['data_class' => '\stdClass'];
-        $optionsResolver = $this->getMockBuilder('Symfony\Component\OptionsResolver\OptionsResolver')->getMock();
+        $resolvedOptions = ['data_class' => \stdClass::class];
+        $optionsResolver = $this->createMock(OptionsResolver::class);
 
-        $this->resolvedType = $this->getMockBuilder('Symfony\Component\Form\ResolvedFormType')
+        $this->resolvedType = $this->getMockBuilder(ResolvedFormType::class)
             ->setConstructorArgs([$this->type, [$this->extension1, $this->extension2], $this->parentResolvedType])
             ->setMethods(['getOptionsResolver'])
             ->getMock();
@@ -178,12 +185,12 @@ class ResolvedFormTypeTest extends TestCase
 
         $this->assertSame($this->resolvedType, $builder->getType());
         $this->assertSame($resolvedOptions, $builder->getOptions());
-        $this->assertSame('\stdClass', $builder->getDataClass());
+        $this->assertSame(\stdClass::class, $builder->getDataClass());
     }
 
     public function testFailsCreateBuilderOnInvalidFormOptionsResolution()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\MissingOptionsException');
+        $this->expectException(MissingOptionsException::class);
         $this->expectExceptionMessage('An error has occurred resolving the options of the form "Symfony\Component\Form\Extension\Core\Type\HiddenType": The required option "foo" is missing.');
         $optionsResolver = (new OptionsResolver())
             ->setRequired('foo')
@@ -219,7 +226,7 @@ class ResolvedFormTypeTest extends TestCase
         };
 
         $options = ['a' => 'Foo', 'b' => 'Bar'];
-        $builder = $this->getMockBuilder('Symfony\Component\Form\Test\FormBuilderInterface')->getMock();
+        $builder = $this->createMock(FormBuilderInterface::class);
 
         // First the form is built for the super type
         $this->parentType->expects($this->once())
@@ -249,30 +256,30 @@ class ResolvedFormTypeTest extends TestCase
 
     public function testCreateView()
     {
-        $form = new Form($this->getMockBuilder(FormConfigInterface::class)->getMock());
+        $form = new Form($this->createMock(FormConfigInterface::class));
 
         $view = $this->resolvedType->createView($form);
 
-        $this->assertInstanceOf('Symfony\Component\Form\FormView', $view);
+        $this->assertInstanceOf(FormView::class, $view);
         $this->assertNull($view->parent);
     }
 
     public function testCreateViewWithParent()
     {
-        $form = new Form($this->getMockBuilder(FormConfigInterface::class)->getMock());
-        $parentView = $this->getMockBuilder('Symfony\Component\Form\FormView')->getMock();
+        $form = new Form($this->createMock(FormConfigInterface::class));
+        $parentView = $this->createMock(FormView::class);
 
         $view = $this->resolvedType->createView($form, $parentView);
 
-        $this->assertInstanceOf('Symfony\Component\Form\FormView', $view);
+        $this->assertInstanceOf(FormView::class, $view);
         $this->assertSame($parentView, $view->parent);
     }
 
     public function testBuildView()
     {
         $options = ['a' => '1', 'b' => '2'];
-        $form = new Form($this->getMockBuilder(FormConfigInterface::class)->getMock());
-        $view = $this->getMockBuilder('Symfony\Component\Form\FormView')->getMock();
+        $form = new Form($this->createMock(FormConfigInterface::class));
+        $view = $this->createMock(FormView::class);
 
         $i = 0;
 
@@ -313,8 +320,8 @@ class ResolvedFormTypeTest extends TestCase
     public function testFinishView()
     {
         $options = ['a' => '1', 'b' => '2'];
-        $form = new Form($this->getMockBuilder(FormConfigInterface::class)->getMock());
-        $view = $this->getMockBuilder('Symfony\Component\Form\FormView')->getMock();
+        $form = new Form($this->createMock(FormConfigInterface::class));
+        $view = $this->createMock(FormView::class);
 
         $i = 0;
 
@@ -376,12 +383,12 @@ class ResolvedFormTypeTest extends TestCase
     public function provideTypeClassBlockPrefixTuples()
     {
         return [
-            [__NAMESPACE__.'\Fixtures\FooType', 'foo'],
-            [__NAMESPACE__.'\Fixtures\Foo', 'foo'],
-            [__NAMESPACE__.'\Fixtures\Type', 'type'],
-            [__NAMESPACE__.'\Fixtures\FooBarHTMLType', 'foo_bar_html'],
+            [Fixtures\FooType::class, 'foo'],
+            [Fixtures\Foo::class, 'foo'],
+            [Fixtures\Type::class, 'type'],
+            [Fixtures\FooBarHTMLType::class, 'foo_bar_html'],
             [__NAMESPACE__.'\Fixtures\Foo1Bar2Type', 'foo1_bar2'],
-            [__NAMESPACE__.'\Fixtures\FBooType', 'f_boo'],
+            [Fixtures\FBooType::class, 'f_boo'],
         ];
     }
 
@@ -392,11 +399,11 @@ class ResolvedFormTypeTest extends TestCase
 
     private function getMockFormTypeExtension(): MockObject
     {
-        return $this->getMockBuilder('Symfony\Component\Form\AbstractTypeExtension')->setMethods(['getExtendedType', 'configureOptions', 'finishView', 'buildView', 'buildForm'])->getMock();
+        return $this->getMockBuilder(AbstractTypeExtension::class)->setMethods(['getExtendedType', 'configureOptions', 'finishView', 'buildView', 'buildForm'])->getMock();
     }
 
     private function getMockFormFactory(): MockObject
     {
-        return $this->getMockBuilder('Symfony\Component\Form\FormFactoryInterface')->getMock();
+        return $this->createMock(FormFactoryInterface::class);
     }
 }

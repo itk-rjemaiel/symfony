@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Twig\Node\FormThemeNode;
 use Symfony\Bridge\Twig\TokenParser\FormThemeTokenParser;
 use Twig\Environment;
+use Twig\Loader\LoaderInterface;
 use Twig\Node\Expression\ArrayExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
@@ -28,15 +29,13 @@ class FormThemeTokenParserTest extends TestCase
      */
     public function testCompile($source, $expected)
     {
-        $env = new Environment($this->getMockBuilder('Twig\Loader\LoaderInterface')->getMock(), ['cache' => false, 'autoescape' => false, 'optimizations' => 0]);
+        $env = new Environment($this->createMock(LoaderInterface::class), ['cache' => false, 'autoescape' => false, 'optimizations' => 0]);
         $env->addTokenParser(new FormThemeTokenParser());
         $source = new Source($source, '');
         $stream = $env->tokenize($source);
         $parser = new Parser($env);
 
-        if (method_exists($expected, 'setSourceContext')) {
-            $expected->setSourceContext($source);
-        }
+        $expected->setSourceContext($source);
 
         $this->assertEquals($expected, $parser->parse($stream)->getNode('body')->getNode(0));
     }

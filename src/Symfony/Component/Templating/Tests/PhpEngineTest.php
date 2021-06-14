@@ -51,7 +51,7 @@ class PhpEngineTest extends TestCase
             $engine['bar'];
             $this->fail('->offsetGet() throws an InvalidArgumentException if the helper is not defined');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->offsetGet() throws an InvalidArgumentException if the helper is not defined');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->offsetGet() throws an InvalidArgumentException if the helper is not defined');
             $this->assertEquals('The helper "bar" is not defined.', $e->getMessage(), '->offsetGet() throws an InvalidArgumentException if the helper is not defined');
         }
     }
@@ -72,7 +72,7 @@ class PhpEngineTest extends TestCase
             $engine->get('foobar');
             $this->fail('->get() throws an InvalidArgumentException if the helper is not defined');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->get() throws an InvalidArgumentException if the helper is not defined');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->get() throws an InvalidArgumentException if the helper is not defined');
             $this->assertEquals('The helper "foobar" is not defined.', $e->getMessage(), '->get() throws an InvalidArgumentException if the helper is not defined');
         }
 
@@ -87,19 +87,19 @@ class PhpEngineTest extends TestCase
         $foo = new \Symfony\Component\Templating\Tests\Fixtures\SimpleHelper('foo');
         $engine->set($foo);
 
-        $this->expectException('\LogicException');
+        $this->expectException(\LogicException::class);
 
         unset($engine['foo']);
     }
 
     public function testExtendRender()
     {
-        $engine = new ProjectTemplateEngine(new TemplateNameParser(), $this->loader, [], [new SlotsHelper()]);
+        $engine = new ProjectTemplateEngine(new TemplateNameParser(), $this->loader, []);
         try {
             $engine->render('name');
             $this->fail('->render() throws an InvalidArgumentException if the template does not exist');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->render() throws an InvalidArgumentException if the template does not exist');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->render() throws an InvalidArgumentException if the template does not exist');
             $this->assertEquals('The template "name" does not exist.', $e->getMessage(), '->render() throws an InvalidArgumentException if the template does not exist');
         }
 
@@ -129,7 +129,7 @@ class PhpEngineTest extends TestCase
      */
     public function testRenderForbiddenParameter($name)
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $engine = new ProjectTemplateEngine(new TemplateNameParser(), $this->loader);
         $this->loader->setTemplate('foo.php', 'bar');
         $engine->render('foo.php', [$name => 'foo']);
@@ -180,9 +180,9 @@ class PhpEngineTest extends TestCase
 
         $this->loader->setTemplate('global.php', '<?php echo $global; ?>');
 
-        $this->assertEquals($engine->render('global.php'), 'global variable');
+        $this->assertEquals('global variable', $engine->render('global.php'));
 
-        $this->assertEquals($engine->render('global.php', ['global' => 'overwritten']), 'overwritten');
+        $this->assertEquals('overwritten', $engine->render('global.php', ['global' => 'overwritten']));
     }
 
     public function testGetLoader()

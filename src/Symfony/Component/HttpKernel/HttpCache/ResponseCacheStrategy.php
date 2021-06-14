@@ -27,12 +27,12 @@ class ResponseCacheStrategy implements ResponseCacheStrategyInterface
     /**
      * Cache-Control headers that are sent to the final response if they appear in ANY of the responses.
      */
-    private static $overrideDirectives = ['private', 'no-cache', 'no-store', 'no-transform', 'must-revalidate', 'proxy-revalidate'];
+    private const OVERRIDE_DIRECTIVES = ['private', 'no-cache', 'no-store', 'no-transform', 'must-revalidate', 'proxy-revalidate'];
 
     /**
      * Cache-Control headers that are sent to the final response if they appear in ALL of the responses.
      */
-    private static $inheritDirectives = ['public', 'immutable'];
+    private const INHERIT_DIRECTIVES = ['public', 'immutable'];
 
     private $embeddedResponses = 0;
     private $isNotCacheableResponseEmbedded = false;
@@ -60,13 +60,13 @@ class ResponseCacheStrategy implements ResponseCacheStrategyInterface
     {
         ++$this->embeddedResponses;
 
-        foreach (self::$overrideDirectives as $directive) {
+        foreach (self::OVERRIDE_DIRECTIVES as $directive) {
             if ($response->headers->hasCacheControlDirective($directive)) {
                 $this->flagDirectives[$directive] = true;
             }
         }
 
-        foreach (self::$inheritDirectives as $directive) {
+        foreach (self::INHERIT_DIRECTIVES as $directive) {
             if (false !== $this->flagDirectives[$directive]) {
                 $this->flagDirectives[$directive] = $response->headers->hasCacheControlDirective($directive);
             }
@@ -110,8 +110,6 @@ class ResponseCacheStrategy implements ResponseCacheStrategyInterface
         $response->headers->set('Age', $this->age);
 
         if ($this->isNotCacheableResponseEmbedded) {
-            $response->setExpires($response->getDate());
-
             if ($this->flagDirectives['no-store']) {
                 $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
             } else {
@@ -130,7 +128,6 @@ class ResponseCacheStrategy implements ResponseCacheStrategyInterface
         $response->headers->set('Cache-Control', implode(', ', array_keys($flags)));
 
         $maxAge = null;
-        $sMaxage = null;
 
         if (is_numeric($this->ageDirectives['max-age'])) {
             $maxAge = $this->ageDirectives['max-age'] + $this->age;

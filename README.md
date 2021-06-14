@@ -2,7 +2,7 @@
     <img src="https://symfony.com/logos/symfony_black_02.svg">
 </a></p>
 
-[Symfony][1] is a **PHP framework** for web applications and a set of reusable
+[Symfony][1] is a **PHP framework** for web and console applications and a set of reusable
 **PHP components**. Symfony is used by thousands of web applications (including
 BlaBlaCar.com and Spotify.com) and most of the [popular PHP projects][2] (including
 Drupal and Magento).
@@ -29,7 +29,7 @@ Community
 * [Join the Symfony Community][11] and meet other members at the [Symfony events][12].
 * [Get Symfony support][13] on Stack Overflow, Slack, IRC, etc.
 * Follow us on [GitHub][14], [Twitter][15] and [Facebook][16].
-* Read our [Code of Conduct][24] and meet the [CARE Team][25]
+* Read our [Code of Conduct][24] and meet the [CARE Team][25].
 
 Contributing
 ------------
@@ -53,7 +53,7 @@ Symfony development is sponsored by [SensioLabs][21], led by the
 [2]: https://symfony.com/projects
 [3]: https://symfony.com/doc/current/reference/requirements.html
 [4]: https://symfony.com/doc/current/setup.html
-[5]: http://semver.org
+[5]: https://semver.org
 [6]: https://symfony.com/doc/current/contributing/community/releases.html
 [7]: https://symfony.com/doc/current/page_creation.html
 [8]: https://symfony.com/doc/current/index.html

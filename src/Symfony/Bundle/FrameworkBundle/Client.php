@@ -62,7 +62,7 @@ class Client extends HttpKernelBrowser
     /**
      * Gets the profile associated with the current Response.
      *
-     * @return HttpProfile|false A Profile instance
+     * @return HttpProfile|false|null A Profile instance
      */
     public function getProfile()
     {
@@ -169,7 +169,7 @@ class Client extends HttpKernelBrowser
         foreach (get_declared_classes() as $class) {
             if (0 === strpos($class, 'ComposerAutoloaderInit')) {
                 $r = new \ReflectionClass($class);
-                $file = \dirname(\dirname($r->getFileName())).'/autoload.php';
+                $file = \dirname($r->getFileName(), 2).'/autoload.php';
                 if (file_exists($file)) {
                     $requires .= 'require_once '.var_export($file, true).";\n";
                 }

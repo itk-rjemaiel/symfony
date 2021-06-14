@@ -13,6 +13,7 @@ namespace Symfony\Component\Yaml\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Dumper;
+use Symfony\Component\Yaml\Exception\DumpException;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Tag\TaggedValue;
 use Symfony\Component\Yaml\Yaml;
@@ -194,7 +195,7 @@ EOF;
 
     public function testObjectSupportDisabledWithExceptions()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\DumpException');
+        $this->expectException(DumpException::class);
         $this->dumper->dump(['foo' => new A(), 'bar' => 1], 0, 0, Yaml::DUMP_EXCEPTION_ON_INVALID_TYPE);
     }
 
@@ -223,6 +224,7 @@ EOF;
             'double-quote' => ['"', "'\"'"],
             'slash' => ['/', '/'],
             'backslash' => ['\\', '\\'],
+            'del' => ["\x7f", '"\x7f"'],
             'next-line' => ["\xC2\x85", '"\\N"'],
             'non-breaking-space' => ["\xc2\xa0", '"\\_"'],
             'line-separator' => ["\xE2\x80\xA8", '"\\L"'],
@@ -466,14 +468,55 @@ YAML;
             'user2' => new TaggedValue('user', 'john'),
         ];
         $expected = <<<YAML
-user1: !user
-    jane
-user2: !user
-    john
+user1: !user jane
+user2: !user john
 
 YAML;
 
         $this->assertSame($expected, $this->dumper->dump($data, 2));
+    }
+
+    public function testDumpingNotInlinedNullTaggedValue()
+    {
+        $data = [
+            'foo' => new TaggedValue('bar', null),
+        ];
+        $expected = <<<YAML
+foo: !bar null
+
+YAML;
+
+        $this->assertSame($expected, $this->dumper->dump($data, 2));
+    }
+
+    public function testDumpingMultiLineStringAsScalarBlockTaggedValue()
+    {
+        $data = [
+            'foo' => new TaggedValue('bar', "foo\nline with trailing spaces:\n  \nbar\ninteger like line:\n123456789\nempty line:\n\nbaz"),
+        ];
+        $expected = "foo: !bar |\n".
+            "    foo\n".
+            "    line with trailing spaces:\n".
+            "      \n".
+            "    bar\n".
+            "    integer like line:\n".
+            "    123456789\n".
+            "    empty line:\n".
+            "    \n".
+            '    baz';
+
+        $this->assertSame($expected, $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+    }
+
+    public function testDumpingInlinedMultiLineIfRnBreakLineInTaggedValue()
+    {
+        $data = [
+            'data' => [
+                'foo' => new TaggedValue('bar', "foo\r\nline with trailing spaces:\n  \nbar\ninteger like line:\n123456789\nempty line:\n\nbaz"),
+            ],
+        ];
+
+        $this->assertSame(file_get_contents(__DIR__.'/Fixtures/multiple_lines_as_literal_block_for_tagged_values.yml'), $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
     }
 
     public function testDumpMultiLineStringAsScalarBlock()
@@ -500,24 +543,91 @@ YAML;
             ],
         ];
 
-        $this->assertSame(file_get_contents(__DIR__.'/Fixtures/multiple_lines_as_literal_block_leading_space_in_first_line.yml'), $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+        $expected = "data:\n    multi_line: |4-\n            the first line has leading spaces\n        The second line does not.";
+
+        $this->assertSame($expected, $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
     }
 
-    public function testCarriageReturnIsMaintainedWhenDumpingAsMultiLineLiteralBlock()
+    public function testCarriageReturnFollowedByNewlineIsMaintainedWhenDumpingAsMultiLineLiteralBlock()
     {
         $this->assertSame("- \"a\\r\\nb\\nc\"\n", $this->dumper->dump(["a\r\nb\nc"], 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
     }
 
+    public function testCarriageReturnNotFollowedByNewlineIsPreservedWhenDumpingAsMultiLineLiteralBlock()
+    {
+        $expected = <<<'YAML'
+parent:
+    foo: "bar\n\rbaz: qux"
+
+YAML;
+
+        $this->assertSame($expected, $this->dumper->dump([
+            'parent' => [
+                'foo' => "bar\n\rbaz: qux",
+            ],
+        ], 4, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+    }
+
+    public function testNoExtraTrailingNewlineWhenDumpingAsMultiLineLiteralBlock()
+    {
+        $data = [
+            "a\nb",
+            "c\nd",
+        ];
+        $yaml = $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
+
+        $this->assertSame("- |-\n    a\n    b\n- |-\n    c\n    d", $yaml);
+        $this->assertSame($data, Yaml::parse($yaml));
+    }
+
+    public function testDumpTrailingNewlineInMultiLineLiteralBlocks()
+    {
+        $data = [
+            'clip 1' => "one\ntwo\n",
+            'clip 2' => "one\ntwo\n",
+            'keep 1' => "one\ntwo\n",
+            'keep 2' => "one\ntwo\n\n",
+            'strip 1' => "one\ntwo",
+            'strip 2' => "one\ntwo",
+        ];
+        $yaml = $this->dumper->dump($data, 2, 0, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
+
+        $expected = <<<YAML
+'clip 1': |
+    one
+    two
+'clip 2': |
+    one
+    two
+'keep 1': |
+    one
+    two
+'keep 2': |+
+    one
+    two
+
+'strip 1': |-
+    one
+    two
+'strip 2': |-
+    one
+    two
+YAML;
+
+        $this->assertSame($expected, $yaml);
+        $this->assertSame($data, Yaml::parse($yaml));
+    }
+
     public function testZeroIndentationThrowsException()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('The indentation must be greater than zero');
         new Dumper(0);
     }
 
     public function testNegativeIndentationThrowsException()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('The indentation must be greater than zero');
         new Dumper(-4);
     }
@@ -525,6 +635,21 @@ YAML;
     public function testDumpNullAsTilde()
     {
         $this->assertSame('{ foo: ~ }', $this->dumper->dump(['foo' => null], 0, 0, Yaml::DUMP_NULL_AS_TILDE));
+    }
+
+    public function testDumpIdeographicSpaces()
+    {
+        $expected = <<<YAML
+alone: '　'
+within_string: 'a　b'
+regular_space: 'a b'
+
+YAML;
+        $this->assertSame($expected, $this->dumper->dump([
+            'alone' => '　',
+            'within_string' => 'a　b',
+            'regular_space' => 'a b',
+        ], 2));
     }
 }
 

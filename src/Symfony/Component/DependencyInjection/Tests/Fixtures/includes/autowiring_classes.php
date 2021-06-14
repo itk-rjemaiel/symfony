@@ -4,6 +4,10 @@ namespace Symfony\Component\DependencyInjection\Tests\Compiler;
 
 use Psr\Log\LoggerInterface;
 
+if (\PHP_VERSION_ID >= 80000) {
+    require __DIR__.'/uniontype_classes.php';
+}
+
 class Foo
 {
 }
@@ -186,12 +190,6 @@ class MultipleArgumentsOptionalScalarLast
     {
     }
 }
-class MultipleArgumentsOptionalScalarNotReallyOptional
-{
-    public function __construct(A $a, $foo = 'default_val', Lille $lille)
-    {
-    }
-}
 
 /*
  * Classes used for testing createResourceForClass
@@ -277,6 +275,7 @@ class Wither
 
     /**
      * @required
+     *
      * @return static
      */
     public function withFoo1(Foo $foo)
@@ -286,6 +285,7 @@ class Wither
 
     /**
      * @required
+     *
      * @return static
      */
     public function withFoo2(Foo $foo)

@@ -12,6 +12,10 @@
 namespace Symfony\Component\DomCrawler\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DomCrawler\Field\ChoiceFormField;
+use Symfony\Component\DomCrawler\Field\FormField;
+use Symfony\Component\DomCrawler\Field\InputFormField;
+use Symfony\Component\DomCrawler\Field\TextareaFormField;
 use Symfony\Component\DomCrawler\Form;
 use Symfony\Component\DomCrawler\FormFieldRegistry;
 
@@ -20,7 +24,7 @@ class FormTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         // Ensure that the private helper class FormFieldRegistry is loaded
-        class_exists('Symfony\\Component\\DomCrawler\\Form');
+        class_exists(Form::class);
     }
 
     public function testConstructorThrowsExceptionIfTheNodeHasNoFormAncestor()
@@ -39,14 +43,14 @@ class FormTest extends TestCase
         $nodes = $dom->getElementsByTagName('input');
 
         try {
-            $form = new Form($nodes->item(0), 'http://example.com');
+            new Form($nodes->item(0), 'http://example.com');
             $this->fail('__construct() throws a \\LogicException if the node has no form ancestor');
         } catch (\LogicException $e) {
             $this->assertTrue(true, '__construct() throws a \\LogicException if the node has no form ancestor');
         }
 
         try {
-            $form = new Form($nodes->item(1), 'http://example.com');
+            new Form($nodes->item(1), 'http://example.com');
             $this->fail('__construct() throws a \\LogicException if the input type is not submit, button, or image');
         } catch (\LogicException $e) {
             $this->assertTrue(true, '__construct() throws a \\LogicException if the input type is not submit, button, or image');
@@ -55,7 +59,7 @@ class FormTest extends TestCase
         $nodes = $dom->getElementsByTagName('button');
 
         try {
-            $form = new Form($nodes->item(0), 'http://example.com');
+            new Form($nodes->item(0), 'http://example.com');
             $this->fail('__construct() throws a \\LogicException if the node has no form ancestor');
         } catch (\LogicException $e) {
             $this->assertTrue(true, '__construct() throws a \\LogicException if the node has no form ancestor');
@@ -63,11 +67,19 @@ class FormTest extends TestCase
     }
 
     /**
-     * __construct() should throw \\LogicException if the form attribute is invalid.
+     * @dataProvider constructorThrowsExceptionIfNoRelatedFormProvider
+     *
+     * __construct() should throw a \LogicException if the form attribute is invalid.
      */
-    public function testConstructorThrowsExceptionIfNoRelatedForm()
+    public function testConstructorThrowsExceptionIfNoRelatedForm(\DOMElement $node)
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
+
+        new Form($node, 'http://example.com');
+    }
+
+    public function constructorThrowsExceptionIfNoRelatedFormProvider()
+    {
         $dom = new \DOMDocument();
         $dom->loadHTML('
             <html>
@@ -81,8 +93,10 @@ class FormTest extends TestCase
 
         $nodes = $dom->getElementsByTagName('input');
 
-        $form = new Form($nodes->item(0), 'http://example.com');
-        $form = new Form($nodes->item(1), 'http://example.com');
+        return [
+            [$nodes->item(0)],
+            [$nodes->item(1)],
+        ];
     }
 
     public function testConstructorLoadsOnlyFieldsOfTheRightForm()
@@ -159,25 +173,28 @@ class FormTest extends TestCase
         ');
 
         $this->assertEquals(
-            array_keys($form->all()),
-            ['foo[2]', 'foo[3]', 'bar[foo][0]', 'bar[foo][foobar]']
+            ['foo[2]', 'foo[3]', 'bar[foo][0]', 'bar[foo][foobar]'],
+            array_keys($form->all())
         );
 
-        $this->assertEquals($form->get('foo[2]')->getValue(), 'foo');
-        $this->assertEquals($form->get('foo[3]')->getValue(), 'foo');
-        $this->assertEquals($form->get('bar[foo][0]')->getValue(), 'foo');
-        $this->assertEquals($form->get('bar[foo][foobar]')->getValue(), 'foo');
+        $this->assertEquals('foo', $form->get('foo[2]')->getValue());
+        $this->assertEquals('foo', $form->get('foo[3]')->getValue());
+        $this->assertEquals('foo', $form->get('bar[foo][0]')->getValue());
+        $this->assertEquals('foo', $form->get('bar[foo][foobar]')->getValue());
 
         $form['foo[2]'] = 'bar';
         $form['foo[3]'] = 'bar';
 
-        $this->assertEquals($form->get('foo[2]')->getValue(), 'bar');
-        $this->assertEquals($form->get('foo[3]')->getValue(), 'bar');
+        $this->assertEquals('bar', $form->get('foo[2]')->getValue());
+        $this->assertEquals('bar', $form->get('foo[3]')->getValue());
 
         $form['bar'] = ['foo' => ['0' => 'bar', 'foobar' => 'foobar']];
 
-        $this->assertEquals($form->get('bar[foo][0]')->getValue(), 'bar');
-        $this->assertEquals($form->get('bar[foo][foobar]')->getValue(), 'foobar');
+        $this->assertEquals('bar', $form->get('bar[foo][0]')->getValue());
+        $this->assertEquals(
+            'foobar',
+            $form->get('bar[foo][foobar]')->getValue()
+        );
     }
 
     /**
@@ -668,7 +685,7 @@ class FormTest extends TestCase
     {
         $form = $this->createForm('<form method="post"><input type="text" name="bar" value="bar" /><input type="submit" /></form>');
 
-        $this->assertInstanceOf('Symfony\\Component\\DomCrawler\\Field\\InputFormField', $form->get('bar'), '->get() returns the field object associated with the given name');
+        $this->assertInstanceOf(InputFormField::class, $form->get('bar'), '->get() returns the field object associated with the given name');
 
         try {
             $form->get('foo');
@@ -684,7 +701,7 @@ class FormTest extends TestCase
 
         $fields = $form->all();
         $this->assertCount(1, $fields, '->all() return an array of form field objects');
-        $this->assertInstanceOf('Symfony\\Component\\DomCrawler\\Field\\InputFormField', $fields['bar'], '->all() return an array of form field objects');
+        $this->assertInstanceOf(InputFormField::class, $fields['bar'], '->all() return an array of form field objects');
     }
 
     public function testSubmitWithoutAFormButton()
@@ -727,14 +744,14 @@ class FormTest extends TestCase
 
     public function testFormFieldRegistryGetThrowAnExceptionWhenTheFieldDoesNotExist()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $registry = new FormFieldRegistry();
         $registry->get('foo');
     }
 
     public function testFormFieldRegistrySetThrowAnExceptionWhenTheFieldDoesNotExist()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $registry = new FormFieldRegistry();
         $registry->set('foo', null);
     }
@@ -813,7 +830,7 @@ class FormTest extends TestCase
 
     public function testFormRegistrySetValueOnCompoundField()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Cannot set value on a compound field "foo[bar]".');
         $registry = new FormFieldRegistry();
         $registry->add($this->getFormFieldMock('foo[bar][baz]'));
@@ -823,7 +840,7 @@ class FormTest extends TestCase
 
     public function testFormRegistrySetArrayOnNotCompoundField()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unreachable field "0"');
         $registry = new FormFieldRegistry();
         $registry->add($this->getFormFieldMock('bar'));
@@ -850,13 +867,13 @@ class FormTest extends TestCase
         ');
         $form = new Form($dom->getElementsByTagName('form')->item(0), 'http://example.com');
 
-        $this->assertInstanceOf('Symfony\Component\DomCrawler\Field\ChoiceFormField', $form->get('option'));
+        $this->assertInstanceOf(ChoiceFormField::class, $form->get('option'));
     }
 
     protected function getFormFieldMock($name, $value = null)
     {
         $field = $this
-            ->getMockBuilder('Symfony\\Component\\DomCrawler\\Field\\FormField')
+            ->getMockBuilder(FormField::class)
             ->setMethods(['getName', 'getValue', 'setValue', 'initialize'])
             ->disableOriginalConstructor()
             ->getMock()
@@ -955,7 +972,7 @@ class FormTest extends TestCase
         return $dom;
     }
 
-    public function testgetPhpValuesWithEmptyTextarea()
+    public function testGetPhpValuesWithEmptyTextarea()
     {
         $dom = new \DOMDocument();
         $dom->loadHTML('
@@ -968,6 +985,36 @@ class FormTest extends TestCase
 
         $nodes = $dom->getElementsByTagName('form');
         $form = new Form($nodes->item(0), 'http://example.com');
-        $this->assertEquals($form->getPhpValues(), ['example' => '']);
+        $this->assertEquals(['example' => ''], $form->getPhpValues());
+    }
+
+    public function testGetReturnTypes()
+    {
+        $dom = new \DOMDocument();
+        $dom->loadHTML('
+            <html>
+                <form>
+                    <textarea name="foo[collection][0][bar]">item 0</textarea>
+                </form>
+            </html>'
+        );
+
+        $nodes = $dom->getElementsByTagName('form');
+        $form = new Form($nodes->item(0), 'http://example.com');
+
+        // FormField
+        $this->assertInstanceOf(TextareaFormField::class, $textareaFormField = $form->get('foo[collection][0][bar]'));
+
+        // Array of FormField
+        $this->assertSame([
+            'bar' => $textareaFormField,
+        ], $form->get('foo[collection][0]'));
+
+        // Array of array of FormField
+        $this->assertSame([
+            [
+                'bar' => $textareaFormField,
+            ],
+        ], $form->get('foo[collection]'));
     }
 }

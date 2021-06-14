@@ -15,12 +15,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Serializer\Encoder\ChainEncoder;
 use Symfony\Component\Serializer\Encoder\EncoderInterface;
 use Symfony\Component\Serializer\Encoder\NormalizationAwareInterface;
+use Symfony\Component\Serializer\Exception\RuntimeException;
 
 class ChainEncoderTest extends TestCase
 {
-    const FORMAT_1 = 'format1';
-    const FORMAT_2 = 'format2';
-    const FORMAT_3 = 'format3';
+    private const FORMAT_1 = 'format1';
+    private const FORMAT_2 = 'format2';
+    private const FORMAT_3 = 'format3';
 
     private $chainEncoder;
     private $encoder1;
@@ -28,10 +29,7 @@ class ChainEncoderTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->encoder1 = $this
-            ->getMockBuilder('Symfony\Component\Serializer\Encoder\EncoderInterface')
-            ->getMock();
-
+        $this->encoder1 = $this->createMock(EncoderInterface::class);
         $this->encoder1
             ->method('supportsEncoding')
             ->willReturnMap([
@@ -41,10 +39,7 @@ class ChainEncoderTest extends TestCase
                 [self::FORMAT_3, ['foo' => 'bar'], true],
             ]);
 
-        $this->encoder2 = $this
-            ->getMockBuilder('Symfony\Component\Serializer\Encoder\EncoderInterface')
-            ->getMock();
-
+        $this->encoder2 = $this->createMock(EncoderInterface::class);
         $this->encoder2
             ->method('supportsEncoding')
             ->willReturnMap([
@@ -67,14 +62,14 @@ class ChainEncoderTest extends TestCase
     public function testEncode()
     {
         $this->encoder1->expects($this->never())->method('encode');
-        $this->encoder2->expects($this->once())->method('encode');
+        $this->encoder2->expects($this->once())->method('encode')->willReturn('foo:123');
 
-        $this->chainEncoder->encode(['foo' => 123], self::FORMAT_2);
+        $this->assertSame('foo:123', $this->chainEncoder->encode(['foo' => 123], self::FORMAT_2));
     }
 
     public function testEncodeUnsupportedFormat()
     {
-        $this->expectException('Symfony\Component\Serializer\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->chainEncoder->encode(['foo' => 123], self::FORMAT_3);
     }
 

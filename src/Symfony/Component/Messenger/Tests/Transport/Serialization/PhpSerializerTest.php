@@ -44,7 +44,7 @@ class PhpSerializerTest extends TestCase
     public function testDecodingFailsWithBadFormat()
     {
         $this->expectException(MessageDecodingFailedException::class);
-        $this->expectExceptionMessageRegExp('/Could not decode/');
+        $this->expectExceptionMessageMatches('/Could not decode/');
 
         $serializer = new PhpSerializer();
 
@@ -56,7 +56,7 @@ class PhpSerializerTest extends TestCase
     public function testDecodingFailsWithBadClass()
     {
         $this->expectException(MessageDecodingFailedException::class);
-        $this->expectExceptionMessageRegExp('/class "ReceivedSt0mp" not found/');
+        $this->expectExceptionMessageMatches('/class "ReceivedSt0mp" not found/');
 
         $serializer = new PhpSerializer();
 
@@ -75,6 +75,17 @@ class PhpSerializerTest extends TestCase
 
         $encoded = $serializer->encode($envelope);
         $this->assertStringNotContainsString('DummyPhpSerializerNonSendableStamp', $encoded['body']);
+    }
+
+    public function testNonUtf8IsBase64Encoded()
+    {
+        $serializer = new PhpSerializer();
+
+        $envelope = new Envelope(new DummyMessage("\xE9"));
+
+        $encoded = $serializer->encode($envelope);
+        $this->assertTrue((bool) preg_match('//u', $encoded['body']), 'Encodes non-UTF8 payloads');
+        $this->assertEquals($envelope, $serializer->decode($encoded));
     }
 }
 

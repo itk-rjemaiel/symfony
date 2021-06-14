@@ -117,14 +117,23 @@ class DateTimeToLocalizedStringTransformer extends BaseDateTimeTransformer
         // date-only patterns require parsing to be done in UTC, as midnight might not exist in the local timezone due
         // to DST changes
         $dateOnly = $this->isPatternDateOnly();
+        $dateFormatter = $this->getIntlDateFormatter($dateOnly);
 
-        $timestamp = $this->getIntlDateFormatter($dateOnly)->parse($value);
+        try {
+            $timestamp = @$dateFormatter->parse($value);
+        } catch (\IntlException $e) {
+            throw new TransformationFailedException($e->getMessage(), $e->getCode(), $e);
+        }
 
         if (0 != intl_get_error_code()) {
-            throw new TransformationFailedException(intl_get_error_message());
+            throw new TransformationFailedException(intl_get_error_message(), intl_get_error_code());
         } elseif ($timestamp > 253402214400) {
             // This timestamp represents UTC midnight of 9999-12-31 to prevent 5+ digit years
             throw new TransformationFailedException('Years beyond 9999 are not supported.');
+        } elseif (false === $timestamp) {
+            // the value couldn't be parsed but the Intl extension didn't report an error code, this
+            // could be the case when the Intl polyfill is used which always returns 0 as the error code
+            throw new TransformationFailedException(sprintf('"%s" could not be parsed as a date.', $value));
         }
 
         try {
@@ -167,7 +176,7 @@ class DateTimeToLocalizedStringTransformer extends BaseDateTimeTransformer
         $calendar = $this->calendar;
         $pattern = $this->pattern;
 
-        $intlDateFormatter = new \IntlDateFormatter(\Locale::getDefault(), $dateFormat, $timeFormat, $timezone, $calendar, $pattern);
+        $intlDateFormatter = new \IntlDateFormatter(\Locale::getDefault(), $dateFormat, $timeFormat, $timezone, $calendar, $pattern ?? '');
 
         // new \intlDateFormatter may return null instead of false in case of failure, see https://bugs.php.net/66323
         if (!$intlDateFormatter) {

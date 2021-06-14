@@ -178,13 +178,13 @@ class FormFactoryBuilder implements FormFactoryBuilderInterface
             if (\count($this->typeGuessers) > 1) {
                 $typeGuesser = new FormTypeGuesserChain($this->typeGuessers);
             } else {
-                $typeGuesser = isset($this->typeGuessers[0]) ? $this->typeGuessers[0] : null;
+                $typeGuesser = $this->typeGuessers[0] ?? null;
             }
 
             $extensions[] = new PreloadedExtension($this->types, $this->typeExtensions, $typeGuesser);
         }
 
-        $registry = new FormRegistry($extensions, $this->resolvedTypeFactory ?: new ResolvedFormTypeFactory());
+        $registry = new FormRegistry($extensions, $this->resolvedTypeFactory ?? new ResolvedFormTypeFactory());
 
         return new FormFactory($registry);
     }

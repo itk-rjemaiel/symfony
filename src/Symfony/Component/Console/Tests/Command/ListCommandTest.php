@@ -23,7 +23,7 @@ class ListCommandTest extends TestCase
         $commandTester = new CommandTester($command = $application->get('list'));
         $commandTester->execute(['command' => $command->getName()], ['decorated' => false]);
 
-        $this->assertRegExp('/help\s{2,}Displays help for a command/', $commandTester->getDisplay(), '->execute() returns a list of available commands');
+        $this->assertMatchesRegularExpression('/help\s{2,}Display help for a command/', $commandTester->getDisplay(), '->execute() returns a list of available commands');
     }
 
     public function testExecuteListsCommandsWithXmlOption()
@@ -31,7 +31,7 @@ class ListCommandTest extends TestCase
         $application = new Application();
         $commandTester = new CommandTester($command = $application->get('list'));
         $commandTester->execute(['command' => $command->getName(), '--format' => 'xml']);
-        $this->assertRegExp('/<command id="list" name="list" hidden="0">/', $commandTester->getDisplay(), '->execute() returns a list of available commands in XML if --xml is passed');
+        $this->assertMatchesRegularExpression('/<command id="list" name="list" hidden="0">/', $commandTester->getDisplay(), '->execute() returns a list of available commands in XML if --xml is passed');
     }
 
     public function testExecuteListsCommandsWithRawOption()
@@ -40,8 +40,8 @@ class ListCommandTest extends TestCase
         $commandTester = new CommandTester($command = $application->get('list'));
         $commandTester->execute(['command' => $command->getName(), '--raw' => true]);
         $output = <<<'EOF'
-help   Displays help for a command
-list   Lists commands
+help   Display help for a command
+list   List commands
 
 EOF;
 
@@ -86,8 +86,8 @@ Options:
   -v|vv|vvv, --verbose  Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug
 
 Available commands:
-  help      Displays help for a command
-  list      Lists commands
+  help      Display help for a command
+  list      List commands
  0foo
   0foo:bar  0foo:bar command
 EOF;
@@ -103,8 +103,8 @@ EOF;
         $commandTester = new CommandTester($command = $application->get('list'));
         $commandTester->execute(['command' => $command->getName(), '--raw' => true]);
         $output = <<<'EOF'
-help       Displays help for a command
-list       Lists commands
+help       Display help for a command
+list       List commands
 0foo:bar   0foo:bar command
 EOF;
 

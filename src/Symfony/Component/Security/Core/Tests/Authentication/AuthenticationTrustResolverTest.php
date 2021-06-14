@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\AuthenticationTrustResolver;
 use Symfony\Component\Security\Core\Authentication\Token\AnonymousToken;
 use Symfony\Component\Security\Core\Authentication\Token\RememberMeToken;
-use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Tests\Fixtures\TokenInterface;
 
 class AuthenticationTrustResolverTest extends TestCase
 {
@@ -124,24 +124,24 @@ class AuthenticationTrustResolverTest extends TestCase
 
     protected function getToken()
     {
-        return $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock();
+        return $this->createMock(TokenInterface::class);
     }
 
     protected function getAnonymousToken()
     {
-        return $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\AnonymousToken')->setConstructorArgs(['', ''])->getMock();
+        return $this->getMockBuilder(AnonymousToken::class)->setConstructorArgs(['', ''])->getMock();
     }
 
     protected function getRememberMeToken()
     {
-        return $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\RememberMeToken')->setMethods(['setPersistent'])->disableOriginalConstructor()->getMock();
+        return $this->getMockBuilder(RememberMeToken::class)->setMethods(['setPersistent'])->disableOriginalConstructor()->getMock();
     }
 
     protected function getResolver()
     {
         return new AuthenticationTrustResolver(
-            'Symfony\\Component\\Security\\Core\\Authentication\\Token\\AnonymousToken',
-            'Symfony\\Component\\Security\\Core\\Authentication\\Token\\RememberMeToken'
+            AnonymousToken::class,
+            RememberMeToken::class
         );
     }
 }
@@ -169,6 +169,10 @@ class FakeCustomToken implements TokenInterface
     }
 
     public function getRoles(): array
+    {
+    }
+
+    public function getRoleNames(): array
     {
     }
 

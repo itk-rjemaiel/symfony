@@ -15,12 +15,13 @@ namespace Symfony\Component\Lock\Tests\Store;
  * @author Jérémy Derussé <jeremy@derusse.com>
  *
  * @requires extension redis
+ * @group integration
  */
 class RedisClusterStoreTest extends AbstractRedisStoreTest
 {
     public static function setUpBeforeClass(): void
     {
-        if (!class_exists('RedisCluster')) {
+        if (!class_exists(\RedisCluster::class)) {
             self::markTestSkipped('The RedisCluster class is required.');
         }
         if (!getenv('REDIS_CLUSTER_HOSTS')) {

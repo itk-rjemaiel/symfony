@@ -13,6 +13,7 @@ namespace Symfony\Component\Security\Core\Tests\Authentication\Token;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\RememberMeToken;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 class RememberMeTokenTest extends TestCase
 {
@@ -30,7 +31,7 @@ class RememberMeTokenTest extends TestCase
 
     public function testConstructorSecretCannotBeEmptyString()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         new RememberMeToken(
             $this->getUser(),
             '',
@@ -40,7 +41,7 @@ class RememberMeTokenTest extends TestCase
 
     protected function getUser($roles = ['ROLE_FOO'])
     {
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
         $user
             ->expects($this->any())
             ->method('getRoles')

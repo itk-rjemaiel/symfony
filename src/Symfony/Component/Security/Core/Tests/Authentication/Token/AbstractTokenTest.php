@@ -14,6 +14,7 @@ namespace Symfony\Component\Security\Core\Tests\Authentication\Token;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\AbstractToken;
 use Symfony\Component\Security\Core\Role\Role;
+use Symfony\Component\Security\Core\User\AdvancedUserInterface;
 use Symfony\Component\Security\Core\User\User;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -28,7 +29,7 @@ class AbstractTokenTest extends TestCase
         $token->setUser(new TestUser('fabien'));
         $this->assertEquals('fabien', $token->getUsername());
 
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
         $user->expects($this->once())->method('getUsername')->willReturn('fabien');
         $token->setUser($user);
         $this->assertEquals('fabien', $token->getUsername());
@@ -38,7 +39,7 @@ class AbstractTokenTest extends TestCase
     {
         $token = new ConcreteToken(['ROLE_FOO']);
 
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
         $user->expects($this->once())->method('eraseCredentials');
         $token->setUser($user);
 
@@ -134,7 +135,7 @@ class AbstractTokenTest extends TestCase
             $token->getAttribute('foobar');
             $this->fail('->getAttribute() throws an \InvalidArgumentException exception when the attribute does not exist');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->getAttribute() throws an \InvalidArgumentException exception when the attribute does not exist');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->getAttribute() throws an \InvalidArgumentException exception when the attribute does not exist');
             $this->assertEquals('This token has no "foobar" attribute.', $e->getMessage(), '->getAttribute() throws an \InvalidArgumentException exception when the attribute does not exist');
         }
     }
@@ -151,7 +152,7 @@ class AbstractTokenTest extends TestCase
 
     public function getUsers()
     {
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
 
         return [
             [$user],
@@ -178,7 +179,7 @@ class AbstractTokenTest extends TestCase
 
     public function getUserChanges()
     {
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
 
         return [
             ['foo', 'bar'],
@@ -212,8 +213,8 @@ class AbstractTokenTest extends TestCase
 
     public function getUserChangesAdvancedUser()
     {
-        $user = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
-        $advancedUser = $this->getMockBuilder('Symfony\Component\Security\Core\User\AdvancedUserInterface')->getMock();
+        $user = $this->createMock(UserInterface::class);
+        $advancedUser = $this->createMock(AdvancedUserInterface::class);
 
         return [
             ['foo', 'bar'],
@@ -248,6 +249,21 @@ class AbstractTokenTest extends TestCase
         $token->setUser($user);
         $this->assertTrue($token->isAuthenticated());
     }
+
+    public function testIsUserChangedWhenSerializing()
+    {
+        $token = new ConcreteToken(['ROLE_ADMIN']);
+        $token->setAuthenticated(true);
+        $this->assertTrue($token->isAuthenticated());
+
+        $user = new SerializableUser('wouter', ['ROLE_ADMIN']);
+        $token->setUser($user);
+        $this->assertTrue($token->isAuthenticated());
+
+        $token = unserialize(serialize($token));
+        $token->setUser($user);
+        $this->assertTrue($token->isAuthenticated());
+    }
 }
 
 class TestUser
@@ -262,6 +278,66 @@ class TestUser
     public function __toString(): string
     {
         return $this->name;
+    }
+}
+
+class SerializableUser implements UserInterface, \Serializable
+{
+    private $roles;
+    private $name;
+
+    public function __construct($name, array $roles = [])
+    {
+        $this->name = $name;
+        $this->roles = $roles;
+    }
+
+    public function getUsername()
+    {
+        return $this->name;
+    }
+
+    public function getPassword()
+    {
+        return '***';
+    }
+
+    public function getRoles()
+    {
+        if (empty($this->roles)) {
+            return ['ROLE_USER'];
+        }
+
+        return $this->roles;
+    }
+
+    public function eraseCredentials()
+    {
+    }
+
+    public function getSalt()
+    {
+        return null;
+    }
+
+    public function serialize(): string
+    {
+        return serialize($this->__serialize());
+    }
+
+    public function unserialize($serialized): void
+    {
+        $this->__unserialize(unserialize($serialized));
+    }
+
+    public function __serialize(): array
+    {
+        return ['name' => $this->name];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        ['name' => $this->name] = $data;
     }
 }
 

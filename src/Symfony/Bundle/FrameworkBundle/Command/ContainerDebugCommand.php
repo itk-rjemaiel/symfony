@@ -21,6 +21,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
@@ -50,20 +51,20 @@ class ContainerDebugCommand extends Command
         $this
             ->setDefinition([
                 new InputArgument('name', InputArgument::OPTIONAL, 'A service name (foo)'),
-                new InputOption('show-private', null, InputOption::VALUE_NONE, 'Used to show public *and* private services (deprecated)'),
-                new InputOption('show-arguments', null, InputOption::VALUE_NONE, 'Used to show arguments in services'),
-                new InputOption('show-hidden', null, InputOption::VALUE_NONE, 'Used to show hidden (internal) services'),
-                new InputOption('tag', null, InputOption::VALUE_REQUIRED, 'Shows all services with a specific tag'),
-                new InputOption('tags', null, InputOption::VALUE_NONE, 'Displays tagged services for an application'),
-                new InputOption('parameter', null, InputOption::VALUE_REQUIRED, 'Displays a specific parameter for an application'),
-                new InputOption('parameters', null, InputOption::VALUE_NONE, 'Displays parameters for an application'),
-                new InputOption('types', null, InputOption::VALUE_NONE, 'Displays types (classes/interfaces) available in the container'),
-                new InputOption('env-var', null, InputOption::VALUE_REQUIRED, 'Displays a specific environment variable used in the container'),
-                new InputOption('env-vars', null, InputOption::VALUE_NONE, 'Displays environment variables used in the container'),
+                new InputOption('show-private', null, InputOption::VALUE_NONE, 'Show public *and* private services (deprecated)'),
+                new InputOption('show-arguments', null, InputOption::VALUE_NONE, 'Show arguments in services'),
+                new InputOption('show-hidden', null, InputOption::VALUE_NONE, 'Show hidden (internal) services'),
+                new InputOption('tag', null, InputOption::VALUE_REQUIRED, 'Show all services with a specific tag'),
+                new InputOption('tags', null, InputOption::VALUE_NONE, 'Display tagged services for an application'),
+                new InputOption('parameter', null, InputOption::VALUE_REQUIRED, 'Display a specific parameter for an application'),
+                new InputOption('parameters', null, InputOption::VALUE_NONE, 'Display parameters for an application'),
+                new InputOption('types', null, InputOption::VALUE_NONE, 'Display types (classes/interfaces) available in the container'),
+                new InputOption('env-var', null, InputOption::VALUE_REQUIRED, 'Display a specific environment variable used in the container'),
+                new InputOption('env-vars', null, InputOption::VALUE_NONE, 'Display environment variables used in the container'),
                 new InputOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt'),
                 new InputOption('raw', null, InputOption::VALUE_NONE, 'To output raw description'),
             ])
-            ->setDescription('Displays current services for an application')
+            ->setDescription('Display current services for an application')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> command displays all configured <comment>public</comment> services:
 
@@ -72,6 +73,10 @@ The <info>%command.name%</info> command displays all configured <comment>public<
 To get specific information about a service, specify its name:
 
   <info>php %command.full_name% validator</info>
+
+To get specific information about a service including all its arguments, use the <info>--show-arguments</info> flag:
+
+  <info>php %command.full_name% validator --show-arguments</info>
 
 To see available types that can be used for autowiring, use the <info>--types</info> flag:
 
@@ -114,10 +119,10 @@ EOF
     /**
      * {@inheritdoc}
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if ($input->getOption('show-private')) {
-            @trigger_error('The "--show-private" option no longer has any effect and is deprecated since Symfony 4.1.', E_USER_DEPRECATED);
+            @trigger_error('The "--show-private" option no longer has any effect and is deprecated since Symfony 4.1.', \E_USER_DEPRECATED);
         }
 
         $io = new SymfonyStyle($input, $output);
@@ -184,6 +189,8 @@ EOF
                 $errorIo->comment('To search for a specific service, re-run this command with a search term. (e.g. <comment>debug:container log</comment>)');
             }
         }
+
+        return 0;
     }
 
     /**
@@ -231,12 +238,14 @@ EOF
             $container->compile();
         } else {
             (new XmlFileLoader($container = new ContainerBuilder(), new FileLocator()))->load($kernel->getContainer()->getParameter('debug.container.dump'));
+            $locatorPass = new ServiceLocatorTagPass();
+            $locatorPass->process($container);
         }
 
         return $this->containerBuilder = $container;
     }
 
-    private function findProperServiceName(InputInterface $input, SymfonyStyle $io, ContainerBuilder $builder, string $name, bool $showHidden)
+    private function findProperServiceName(InputInterface $input, SymfonyStyle $io, ContainerBuilder $builder, string $name, bool $showHidden): string
     {
         $name = ltrim($name, '\\');
 
@@ -256,7 +265,7 @@ EOF
         return $io->choice('Select one of the following services to display its information', $matchingServices);
     }
 
-    private function findServiceIdsContaining(ContainerBuilder $builder, string $name, bool $showHidden)
+    private function findServiceIdsContaining(ContainerBuilder $builder, string $name, bool $showHidden): array
     {
         $serviceIds = $builder->getServiceIds();
         $foundServiceIds = $foundServiceIdsIgnoringBackslashes = [];
@@ -278,7 +287,7 @@ EOF
     /**
      * @internal
      */
-    public function filterToServiceTypes($serviceId)
+    public function filterToServiceTypes(string $serviceId): bool
     {
         // filter out things that could not be valid class names
         if (!preg_match('/(?(DEFINE)(?<V>[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*+))^(?&V)(?:\\\\(?&V))*+(?: \$(?&V))?$/', $serviceId)) {

@@ -12,22 +12,22 @@
 namespace Symfony\Component\Messenger\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageReceivedEvent;
+use Symfony\Component\Messenger\Event\WorkerRunningEvent;
+use Symfony\Component\Messenger\Event\WorkerStartedEvent;
 use Symfony\Component\Messenger\Event\WorkerStoppedEvent;
-use Symfony\Component\Messenger\Exception\HandlerFailedException;
-use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
+use Symfony\Component\Messenger\EventListener\StopWorkerOnMessageLimitListener;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Messenger\Retry\RetryStrategyInterface;
+use Symfony\Component\Messenger\Stamp\ConsumedByWorkerStamp;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
-use Symfony\Component\Messenger\Stamp\RedeliveryStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
 use Symfony\Component\Messenger\Tests\Fixtures\DummyMessage;
 use Symfony\Component\Messenger\Transport\Receiver\ReceiverInterface;
 use Symfony\Component\Messenger\Worker;
-use Symfony\Component\Messenger\Worker\StopWhenMessageCountIsExceededWorker;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -44,158 +44,45 @@ class WorkerTest extends TestCase
             [new Envelope($apiMessage), new Envelope($ipaMessage)],
         ]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
 
-        $bus->expects($this->at(0))->method('dispatch')->with(
-            $envelope = new Envelope($apiMessage, [new ReceivedStamp('transport')])
-        )->willReturn($envelope);
+        $bus->expects($this->exactly(2))
+            ->method('dispatch')
+            ->withConsecutive(
+                [new Envelope($apiMessage, [new ReceivedStamp('transport'), new ConsumedByWorkerStamp()])],
+                [new Envelope($ipaMessage, [new ReceivedStamp('transport'), new ConsumedByWorkerStamp()])]
+            )
+            ->willReturnOnConsecutiveCalls(
+                $this->returnArgument(0),
+                $this->returnArgument(0)
+            );
 
-        $bus->expects($this->at(1))->method('dispatch')->with(
-            $envelope = new Envelope($ipaMessage, [new ReceivedStamp('transport')])
-        )->willReturn($envelope);
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addSubscriber(new StopWorkerOnMessageLimitListener(2));
 
-        $worker = new Worker(['transport' => $receiver], $bus);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
+        $worker = new Worker(['transport' => $receiver], $bus, $dispatcher);
+        $worker->run();
 
         $this->assertSame(2, $receiver->getAcknowledgeCount());
     }
 
-    public function testWorkerDoesNotWrapMessagesAlreadyWrappedWithReceivedMessage()
-    {
-        $envelope = new Envelope(new DummyMessage('API'));
-        $receiver = new DummyReceiver([[$envelope]]);
-        $envelope = $envelope->with(new ReceivedStamp('transport'));
-
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
-        $bus->expects($this->at(0))->method('dispatch')->with($envelope)->willReturn($envelope);
-
-        $worker = new Worker(['transport' => $receiver], $bus, []);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
-    }
-
-    public function testDispatchCausesRetry()
+    public function testHandlingErrorCausesReject()
     {
         $receiver = new DummyReceiver([
             [new Envelope(new DummyMessage('Hello'), [new SentStamp('Some\Sender', 'transport1')])],
         ]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
-        $bus->expects($this->at(0))->method('dispatch')->willThrowException(new \InvalidArgumentException('Why not'));
-
-        // 2nd call will be the retry
-        $bus->expects($this->at(1))->method('dispatch')->with($this->callback(function (Envelope $envelope) {
-            /** @var RedeliveryStamp|null $redeliveryStamp */
-            $redeliveryStamp = $envelope->last(RedeliveryStamp::class);
-            $this->assertNotNull($redeliveryStamp);
-            // retry count now at 1
-            $this->assertSame(1, $redeliveryStamp->getRetryCount());
-            $this->assertSame('transport1', $redeliveryStamp->getSenderClassOrAlias());
-
-            // received stamp is removed
-            $this->assertNull($envelope->last(ReceivedStamp::class));
-
-            return true;
-        }))->willReturnArgument(0);
-
-        $retryStrategy = $this->getMockBuilder(RetryStrategyInterface::class)->getMock();
-        $retryStrategy->expects($this->once())->method('isRetryable')->willReturn(true);
-
-        $worker = new Worker(['transport1' => $receiver], $bus, ['transport1' => $retryStrategy]);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
-
-        // old message acknowledged
-        $this->assertSame(1, $receiver->getAcknowledgeCount());
-    }
-
-    public function testUnrecoverableMessageHandlingExceptionPreventsRetries()
-    {
-        $envelope1 = new Envelope(new DummyMessage('Unwrapped Exception'), [new SentStamp('Some\Sender', 'transport1')]);
-        $envelope2 = new Envelope(new DummyMessage('Wrapped Exception'), [new SentStamp('Some\Sender', 'transport1')]);
-
-        $receiver = new DummyReceiver([
-            [$envelope1],
-            [$envelope2],
-        ]);
-
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
-        $bus->expects($this->at(0))->method('dispatch')->willThrowException(new UnrecoverableMessageHandlingException());
-        $bus->expects($this->at(1))->method('dispatch')->willThrowException(
-            new HandlerFailedException($envelope2, [new UnrecoverableMessageHandlingException()])
-        );
-
-        $retryStrategy = $this->getMockBuilder(RetryStrategyInterface::class)->getMock();
-        $retryStrategy->expects($this->never())->method('isRetryable')->willReturn(true);
-
-        $worker = new Worker(['transport1' => $receiver], $bus, ['transport1' => $retryStrategy]);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
-
-        // message was rejected
-        $this->assertSame(2, $receiver->getRejectCount());
-    }
-
-    public function testDispatchCausesRejectWhenNoRetry()
-    {
-        $receiver = new DummyReceiver([
-            [new Envelope(new DummyMessage('Hello'), [new SentStamp('Some\Sender', 'transport1')])],
-        ]);
-
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
         $bus->method('dispatch')->willThrowException(new \InvalidArgumentException('Why not'));
 
-        $retryStrategy = $this->getMockBuilder(RetryStrategyInterface::class)->getMock();
-        $retryStrategy->expects($this->once())->method('isRetryable')->willReturn(false);
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addSubscriber(new StopWorkerOnMessageLimitListener(1));
 
-        $worker = new Worker(['transport1' => $receiver], $bus, ['transport1' => $retryStrategy]);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
+        $worker = new Worker(['transport1' => $receiver], $bus, $dispatcher);
+        $worker->run();
+
         $this->assertSame(1, $receiver->getRejectCount());
         $this->assertSame(0, $receiver->getAcknowledgeCount());
-    }
-
-    public function testDispatchCausesRejectOnUnrecoverableMessage()
-    {
-        $receiver = new DummyReceiver([
-            [new Envelope(new DummyMessage('Hello'))],
-        ]);
-
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
-        $bus->method('dispatch')->willThrowException(new UnrecoverableMessageHandlingException('Will never work'));
-
-        $retryStrategy = $this->getMockBuilder(RetryStrategyInterface::class)->getMock();
-        $retryStrategy->expects($this->never())->method('isRetryable');
-
-        $worker = new Worker(['transport1' => $receiver], $bus, ['transport1' => $retryStrategy]);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
-        $this->assertSame(1, $receiver->getRejectCount());
     }
 
     public function testWorkerDoesNotSendNullMessagesToTheBus()
@@ -204,16 +91,16 @@ class WorkerTest extends TestCase
             null,
         ]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
         $bus->expects($this->never())->method('dispatch');
 
-        $worker = new Worker([$receiver], $bus);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WorkerRunningEvent::class, function (WorkerRunningEvent $event) {
+            $event->getWorker()->stop();
         });
+
+        $worker = new Worker([$receiver], $bus, $dispatcher);
+        $worker->run();
     }
 
     public function testWorkerDispatchesEventsOnSuccess()
@@ -221,26 +108,29 @@ class WorkerTest extends TestCase
         $envelope = new Envelope(new DummyMessage('Hello'));
         $receiver = new DummyReceiver([[$envelope]]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
         $bus->method('dispatch')->willReturn($envelope);
 
-        $eventDispatcher = $this->getMockBuilder(EventDispatcherInterface::class)->getMock();
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
 
-        $eventDispatcher->expects($this->exactly(3))
+        $eventDispatcher->expects($this->exactly(5))
             ->method('dispatch')
             ->withConsecutive(
+                [$this->isInstanceOf(WorkerStartedEvent::class)],
                 [$this->isInstanceOf(WorkerMessageReceivedEvent::class)],
                 [$this->isInstanceOf(WorkerMessageHandledEvent::class)],
+                [$this->isInstanceOf(WorkerRunningEvent::class)],
                 [$this->isInstanceOf(WorkerStoppedEvent::class)]
-            );
+            )->willReturnCallback(function ($event) {
+                if ($event instanceof WorkerRunningEvent) {
+                    $event->getWorker()->stop();
+                }
 
-        $worker = new Worker([$receiver], $bus, [], $eventDispatcher);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
+                return $event;
+            });
+
+        $worker = new Worker([$receiver], $bus, $eventDispatcher);
+        $worker->run();
     }
 
     public function testWorkerDispatchesEventsOnError()
@@ -248,27 +138,30 @@ class WorkerTest extends TestCase
         $envelope = new Envelope(new DummyMessage('Hello'));
         $receiver = new DummyReceiver([[$envelope]]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
         $exception = new \InvalidArgumentException('Oh no!');
         $bus->method('dispatch')->willThrowException($exception);
 
-        $eventDispatcher = $this->getMockBuilder(EventDispatcherInterface::class)->getMock();
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
 
-        $eventDispatcher->expects($this->exactly(3))
+        $eventDispatcher->expects($this->exactly(5))
             ->method('dispatch')
             ->withConsecutive(
+                [$this->isInstanceOf(WorkerStartedEvent::class)],
                 [$this->isInstanceOf(WorkerMessageReceivedEvent::class)],
                 [$this->isInstanceOf(WorkerMessageFailedEvent::class)],
+                [$this->isInstanceOf(WorkerRunningEvent::class)],
                 [$this->isInstanceOf(WorkerStoppedEvent::class)]
-            );
+            )->willReturnCallback(function ($event) {
+                if ($event instanceof WorkerRunningEvent) {
+                    $event->getWorker()->stop();
+                }
 
-        $worker = new Worker([$receiver], $bus, [], $eventDispatcher);
-        $worker->run([], function (?Envelope $envelope) use ($worker) {
-            // stop after the messages finish
-            if (null === $envelope) {
-                $worker->stop();
-            }
-        });
+                return $event;
+            });
+
+        $worker = new Worker([$receiver], $bus, $eventDispatcher);
+        $worker->run();
     }
 
     public function testTimeoutIsConfigurable()
@@ -284,27 +177,21 @@ class WorkerTest extends TestCase
             [new Envelope($apiMessage)],
         ]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
 
-        $worker = new Worker([$receiver], $bus);
-        $receivedCount = 0;
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addSubscriber(new StopWorkerOnMessageLimitListener(5));
+
+        $worker = new Worker([$receiver], $bus, $dispatcher);
         $startTime = microtime(true);
         // sleep .1 after each idle
-        $worker->run(['sleep' => 100000], function (?Envelope $envelope) use ($worker, &$receivedCount, $startTime) {
-            if (null !== $envelope) {
-                ++$receivedCount;
-            }
+        $worker->run(['sleep' => 100000]);
 
-            if (5 === $receivedCount) {
-                $worker->stop();
-                $duration = microtime(true) - $startTime;
-
-                // wait time should be .3 seconds
-                // use .29 & .31 for timing "wiggle room"
-                $this->assertGreaterThanOrEqual(.29, $duration);
-                $this->assertLessThan(.31, $duration);
-            }
-        });
+        $duration = microtime(true) - $startTime;
+        // wait time should be .3 seconds
+        // use .29 & .31 for timing "wiggle room"
+        $this->assertGreaterThanOrEqual(.29, $duration);
+        $this->assertLessThan(.31, $duration);
     }
 
     public function testWorkerWithMultipleReceivers()
@@ -342,49 +229,19 @@ class WorkerTest extends TestCase
             [$envelope6],
         ]);
 
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
+        $bus = $this->createMock(MessageBusInterface::class);
 
-        $receivedCount = 0;
-        $worker = new Worker([$receiver1, $receiver2, $receiver3], $bus);
         $processedEnvelopes = [];
-        $worker->run([], function (?Envelope $envelope) use ($worker, &$receivedCount, &$processedEnvelopes) {
-            if (null !== $envelope) {
-                $processedEnvelopes[] = $envelope;
-                ++$receivedCount;
-            }
-
-            // stop after the messages finish
-            if (6 === $receivedCount) {
-                $worker->stop();
-            }
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addSubscriber(new StopWorkerOnMessageLimitListener(6));
+        $dispatcher->addListener(WorkerMessageReceivedEvent::class, function (WorkerMessageReceivedEvent $event) use (&$processedEnvelopes) {
+            $processedEnvelopes[] = $event->getEnvelope();
         });
+        $worker = new Worker([$receiver1, $receiver2, $receiver3], $bus, $dispatcher);
+        $worker->run();
 
         // make sure they were processed in the correct order
         $this->assertSame([$envelope1, $envelope2, $envelope3, $envelope4, $envelope5, $envelope6], $processedEnvelopes);
-    }
-
-    public function testWorkerWithDecorator()
-    {
-        $envelope1 = new Envelope(new DummyMessage('message1'));
-        $envelope2 = new Envelope(new DummyMessage('message2'));
-        $envelope3 = new Envelope(new DummyMessage('message3'));
-
-        $receiver = new DummyReceiver([
-            [$envelope1, $envelope2, $envelope3],
-        ]);
-
-        $bus = $this->getMockBuilder(MessageBusInterface::class)->getMock();
-
-        $worker = new Worker([$receiver], $bus);
-        $workerWithDecorator = new StopWhenMessageCountIsExceededWorker($worker, 2);
-        $processedEnvelopes = [];
-        $workerWithDecorator->run([], function (?Envelope $envelope) use ($worker, &$processedEnvelopes) {
-            if (null !== $envelope) {
-                $processedEnvelopes[] = $envelope;
-            }
-        });
-
-        $this->assertSame([$envelope1, $envelope2], $processedEnvelopes);
     }
 }
 

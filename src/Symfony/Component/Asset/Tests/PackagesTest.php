@@ -12,7 +12,10 @@
 namespace Symfony\Component\Asset\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Asset\Exception\InvalidArgumentException;
+use Symfony\Component\Asset\Exception\LogicException;
 use Symfony\Component\Asset\Package;
+use Symfony\Component\Asset\PackageInterface;
 use Symfony\Component\Asset\Packages;
 use Symfony\Component\Asset\VersionStrategy\StaticVersionStrategy;
 
@@ -21,16 +24,16 @@ class PackagesTest extends TestCase
     public function testGetterSetters()
     {
         $packages = new Packages();
-        $packages->setDefaultPackage($default = $this->getMockBuilder('Symfony\Component\Asset\PackageInterface')->getMock());
-        $packages->addPackage('a', $a = $this->getMockBuilder('Symfony\Component\Asset\PackageInterface')->getMock());
+        $packages->setDefaultPackage($default = $this->createMock(PackageInterface::class));
+        $packages->addPackage('a', $a = $this->createMock(PackageInterface::class));
 
-        $this->assertEquals($default, $packages->getPackage());
-        $this->assertEquals($a, $packages->getPackage('a'));
+        $this->assertSame($default, $packages->getPackage());
+        $this->assertSame($a, $packages->getPackage('a'));
 
         $packages = new Packages($default, ['a' => $a]);
 
-        $this->assertEquals($default, $packages->getPackage());
-        $this->assertEquals($a, $packages->getPackage('a'));
+        $this->assertSame($default, $packages->getPackage());
+        $this->assertSame($a, $packages->getPackage('a'));
     }
 
     public function testGetVersion()
@@ -40,8 +43,8 @@ class PackagesTest extends TestCase
             ['a' => new Package(new StaticVersionStrategy('a'))]
         );
 
-        $this->assertEquals('default', $packages->getVersion('/foo'));
-        $this->assertEquals('a', $packages->getVersion('/foo', 'a'));
+        $this->assertSame('default', $packages->getVersion('/foo'));
+        $this->assertSame('a', $packages->getVersion('/foo', 'a'));
     }
 
     public function testGetUrl()
@@ -51,20 +54,20 @@ class PackagesTest extends TestCase
             ['a' => new Package(new StaticVersionStrategy('a'))]
         );
 
-        $this->assertEquals('/foo?default', $packages->getUrl('/foo'));
-        $this->assertEquals('/foo?a', $packages->getUrl('/foo', 'a'));
+        $this->assertSame('/foo?default', $packages->getUrl('/foo'));
+        $this->assertSame('/foo?a', $packages->getUrl('/foo', 'a'));
     }
 
     public function testNoDefaultPackage()
     {
-        $this->expectException('Symfony\Component\Asset\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $packages = new Packages();
         $packages->getPackage();
     }
 
     public function testUndefinedPackage()
     {
-        $this->expectException('Symfony\Component\Asset\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $packages = new Packages();
         $packages->getPackage('a');
     }

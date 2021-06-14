@@ -35,7 +35,7 @@ class PreloadedExtension implements FormExtensionInterface
         foreach ($typeExtensions as $extensions) {
             foreach ($extensions as $typeExtension) {
                 if (!method_exists($typeExtension, 'getExtendedTypes')) {
-                    @trigger_error(sprintf('Not implementing the "%s::getExtendedTypes()" method in "%s" is deprecated since Symfony 4.2.', FormTypeExtensionInterface::class, \get_class($typeExtension)), E_USER_DEPRECATED);
+                    @trigger_error(sprintf('Not implementing the "%s::getExtendedTypes()" method in "%s" is deprecated since Symfony 4.2.', FormTypeExtensionInterface::class, \get_class($typeExtension)), \E_USER_DEPRECATED);
                 }
             }
         }
@@ -54,7 +54,7 @@ class PreloadedExtension implements FormExtensionInterface
     public function getType($name)
     {
         if (!isset($this->types[$name])) {
-            throw new InvalidArgumentException(sprintf('The type "%s" can not be loaded by this extension', $name));
+            throw new InvalidArgumentException(sprintf('The type "%s" can not be loaded by this extension.', $name));
         }
 
         return $this->types[$name];
@@ -73,9 +73,8 @@ class PreloadedExtension implements FormExtensionInterface
      */
     public function getTypeExtensions($name)
     {
-        return isset($this->typeExtensions[$name])
-            ? $this->typeExtensions[$name]
-            : [];
+        return $this->typeExtensions[$name]
+            ?? [];
     }
 
     /**

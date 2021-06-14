@@ -36,7 +36,7 @@ class SessionHandlerProxyTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->mock = $this->getMockBuilder('SessionHandlerInterface')->getMock();
+        $this->mock = $this->createMock(\SessionHandlerInterface::class);
         $this->proxy = new SessionHandlerProxy($this->mock);
     }
 
@@ -93,7 +93,9 @@ class SessionHandlerProxyTest extends TestCase
     public function testRead()
     {
         $this->mock->expects($this->once())
-            ->method('read');
+            ->method('read')
+            ->willReturn('foo')
+        ;
 
         $this->proxy->read('id');
     }
@@ -117,17 +119,16 @@ class SessionHandlerProxyTest extends TestCase
     public function testGc()
     {
         $this->mock->expects($this->once())
-            ->method('gc');
+            ->method('gc')
+            ->willReturn(1)
+        ;
 
         $this->proxy->gc(86400);
     }
 
-    /**
-     * @requires PHPUnit 5.1
-     */
     public function testValidateId()
     {
-        $mock = $this->getMockBuilder(['SessionHandlerInterface', 'SessionUpdateTimestampHandlerInterface'])->getMock();
+        $mock = $this->createMock(TestSessionHandler::class);
         $mock->expects($this->once())
             ->method('validateId');
 
@@ -137,12 +138,9 @@ class SessionHandlerProxyTest extends TestCase
         $this->assertTrue($this->proxy->validateId('id'));
     }
 
-    /**
-     * @requires PHPUnit 5.1
-     */
     public function testUpdateTimestamp()
     {
-        $mock = $this->getMockBuilder(['SessionHandlerInterface', 'SessionUpdateTimestampHandlerInterface'])->getMock();
+        $mock = $this->createMock(TestSessionHandler::class);
         $mock->expects($this->once())
             ->method('updateTimestamp')
             ->willReturn(false);
@@ -155,4 +153,8 @@ class SessionHandlerProxyTest extends TestCase
 
         $this->proxy->updateTimestamp('id', 'data');
     }
+}
+
+abstract class TestSessionHandler implements \SessionHandlerInterface, \SessionUpdateTimestampHandlerInterface
+{
 }

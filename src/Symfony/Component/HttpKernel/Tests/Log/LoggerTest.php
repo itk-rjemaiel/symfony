@@ -59,7 +59,7 @@ class LoggerTest extends TestCase
      */
     public function getLogs(): array
     {
-        return file($this->tmpFile, FILE_IGNORE_NEW_LINES);
+        return file($this->tmpFile, \FILE_IGNORE_NEW_LINES);
     }
 
     public function testImplements()
@@ -109,19 +109,19 @@ class LoggerTest extends TestCase
 
     public function testThrowsOnInvalidLevel()
     {
-        $this->expectException('Psr\Log\InvalidArgumentException');
+        $this->expectException(\Psr\Log\InvalidArgumentException::class);
         $this->logger->log('invalid level', 'Foo');
     }
 
     public function testThrowsOnInvalidMinLevel()
     {
-        $this->expectException('Psr\Log\InvalidArgumentException');
+        $this->expectException(\Psr\Log\InvalidArgumentException::class);
         new Logger('invalid');
     }
 
     public function testInvalidOutput()
     {
-        $this->expectException('Psr\Log\InvalidArgumentException');
+        $this->expectException(\Psr\Log\InvalidArgumentException::class);
         new Logger(LogLevel::DEBUG, '/');
     }
 

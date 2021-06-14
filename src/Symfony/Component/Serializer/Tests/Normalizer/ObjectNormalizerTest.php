@@ -17,6 +17,9 @@ use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
 use Symfony\Component\PropertyInfo\PropertyInfoExtractor;
 use Symfony\Component\Serializer\Exception\CircularReferenceException;
+use Symfony\Component\Serializer\Exception\LogicException;
+use Symfony\Component\Serializer\Exception\RuntimeException;
+use Symfony\Component\Serializer\Exception\UnexpectedValueException;
 use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory;
 use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactoryInterface;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
@@ -30,8 +33,12 @@ use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Serializer\Tests\Fixtures\CircularReferenceDummy;
+use Symfony\Component\Serializer\Tests\Fixtures\DummyPrivatePropertyWithoutGetter;
 use Symfony\Component\Serializer\Tests\Fixtures\GroupDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\MaxDepthDummy;
+use Symfony\Component\Serializer\Tests\Fixtures\OtherSerializedNameDummy;
+use Symfony\Component\Serializer\Tests\Fixtures\Php74Dummy;
+use Symfony\Component\Serializer\Tests\Fixtures\Php74DummyPrivate;
 use Symfony\Component\Serializer\Tests\Fixtures\SiblingHolder;
 use Symfony\Component\Serializer\Tests\Normalizer\Features\AttributesTestTrait;
 use Symfony\Component\Serializer\Tests\Normalizer\Features\CallbacksObject;
@@ -78,7 +85,7 @@ class ObjectNormalizerTest extends TestCase
 
     private function createNormalizer(array $defaultContext = [], ClassMetadataFactoryInterface $classMetadataFactory = null)
     {
-        $this->serializer = $this->getMockBuilder(__NAMESPACE__.'\ObjectSerializerNormalizer')->getMock();
+        $this->serializer = $this->createMock(ObjectSerializerNormalizer::class);
         $this->normalizer = new ObjectNormalizer($classMetadataFactory, null, null, null, null, null, $defaultContext);
         $this->normalizer->setSerializer($this->serializer);
     }
@@ -109,6 +116,39 @@ class ObjectNormalizerTest extends TestCase
                 'camelCase' => 'camelcase',
                 'object' => 'string_object',
             ],
+            $this->normalizer->normalize($obj, 'any')
+        );
+    }
+
+    /**
+     * @requires PHP 7.4
+     */
+    public function testNormalizeObjectWithUninitializedProperties()
+    {
+        $obj = new Php74Dummy();
+        $this->assertEquals(
+            ['initializedProperty' => 'defaultValue'],
+            $this->normalizer->normalize($obj, 'any')
+        );
+    }
+
+    /**
+     * @requires PHP 7.4
+     */
+    public function testNormalizeObjectWithUninitializedPrivateProperties()
+    {
+        $obj = new Php74DummyPrivate();
+        $this->assertEquals(
+            ['initializedProperty' => 'defaultValue'],
+            $this->normalizer->normalize($obj, 'any')
+        );
+    }
+
+    public function testNormalizeObjectWithPrivatePropertyWithoutGetter()
+    {
+        $obj = new DummyPrivatePropertyWithoutGetter();
+        $this->assertEquals(
+            ['bar' => 'bar'],
             $this->normalizer->normalize($obj, 'any')
         );
     }
@@ -145,7 +185,7 @@ class ObjectNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'foo', 'bar' => 'bar', 'baz' => true, 'fooBar' => 'foobar'],
-            __NAMESPACE__.'\ObjectConstructorDummy', 'any');
+            ObjectConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertEquals('bar', $obj->bar);
         $this->assertTrue($obj->isBaz());
@@ -155,7 +195,7 @@ class ObjectNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'foo', 'bar' => null, 'baz' => true],
-            __NAMESPACE__.'\ObjectConstructorDummy', 'any');
+            ObjectConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertNull($obj->bar);
         $this->assertTrue($obj->isBaz());
@@ -165,7 +205,7 @@ class ObjectNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'test', 'baz' => [1, 2, 3]],
-            __NAMESPACE__.'\ObjectConstructorOptionalArgsDummy', 'any');
+            ObjectConstructorOptionalArgsDummy::class, 'any');
         $this->assertEquals('test', $obj->getFoo());
         $this->assertEquals([], $obj->bar);
         $this->assertEquals([1, 2, 3], $obj->getBaz());
@@ -175,7 +215,7 @@ class ObjectNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['bar' => 'test'],
-            __NAMESPACE__.'\ObjectConstructorArgsWithDefaultValueDummy', 'any');
+            ObjectConstructorArgsWithDefaultValueDummy::class, 'any');
         $this->assertEquals([], $obj->getFoo());
         $this->assertEquals('test', $obj->getBar());
     }
@@ -187,7 +227,7 @@ class ObjectNormalizerTest extends TestCase
         $data->bar = 'bar';
         $data->baz = true;
         $data->fooBar = 'foobar';
-        $obj = $this->normalizer->denormalize($data, __NAMESPACE__.'\ObjectConstructorDummy', 'any');
+        $obj = $this->normalizer->denormalize($data, ObjectConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertEquals('bar', $obj->bar);
     }
@@ -233,7 +273,7 @@ class ObjectNormalizerTest extends TestCase
 
     public function testConstructorWithUnknownObjectTypeHintDenormalize()
     {
-        $this->expectException('Symfony\Component\Serializer\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Could not determine the class of the parameter "unknown".');
         $data = [
             'id' => 10,
@@ -351,9 +391,9 @@ class ObjectNormalizerTest extends TestCase
 
     // circular reference
 
-    protected function getNormalizerForCircularReference(): ObjectNormalizer
+    protected function getNormalizerForCircularReference(array $defaultContext): ObjectNormalizer
     {
-        $normalizer = new ObjectNormalizer();
+        $normalizer = new ObjectNormalizer(null, null, null, null, null, null, $defaultContext);
         new Serializer([$normalizer]);
 
         return $normalizer;
@@ -478,6 +518,23 @@ class ObjectNormalizerTest extends TestCase
                 'symfony' => '@coopTilleuls',
                 'coop_tilleuls' => 'les-tilleuls.coop',
             ], 'Symfony\Component\Serializer\Tests\Fixtures\GroupDummy', null, [ObjectNormalizer::GROUPS => ['name_converter']])
+        );
+    }
+
+    public function testGroupsDenormalizeWithMetaDataNameConverter()
+    {
+        $classMetadataFactory = new ClassMetadataFactory(new AnnotationLoader(new AnnotationReader()));
+        $this->normalizer = new ObjectNormalizer($classMetadataFactory, new MetadataAwareNameConverter($classMetadataFactory));
+        $this->normalizer->setSerializer($this->serializer);
+
+        $obj = new OtherSerializedNameDummy();
+        $obj->setBuz('Aldrin');
+
+        $this->assertEquals(
+            $obj,
+            $this->normalizer->denormalize([
+                'buz' => 'Aldrin',
+            ], 'Symfony\Component\Serializer\Tests\Fixtures\OtherSerializedNameDummy', null, [ObjectNormalizer::GROUPS => ['a']])
         );
     }
 
@@ -659,9 +716,9 @@ class ObjectNormalizerTest extends TestCase
 
     public function testUnableToNormalizeObjectAttribute()
     {
-        $this->expectException('Symfony\Component\Serializer\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Cannot normalize attribute "object" because the injected serializer is not a normalizer');
-        $serializer = $this->getMockBuilder('Symfony\Component\Serializer\SerializerInterface')->getMock();
+        $serializer = $this->createMock(SerializerInterface::class);
         $this->normalizer->setSerializer($serializer);
 
         $obj = new ObjectDummy();
@@ -710,9 +767,20 @@ class ObjectNormalizerTest extends TestCase
         }]));
     }
 
+    public function testDefaultExcludeFromCacheKey()
+    {
+        $normalizer = new class(null, null, null, null, null, null, [ObjectNormalizer::EXCLUDE_FROM_CACHE_KEY => ['foo']]) extends ObjectNormalizer {
+            protected function isCircularReference($object, &$context)
+            {
+                ObjectNormalizerTest::assertContains('foo', $this->defaultContext[ObjectNormalizer::EXCLUDE_FROM_CACHE_KEY]);
+            }
+        };
+        $normalizer->normalize(new ObjectDummy());
+    }
+
     public function testThrowUnexpectedValueException()
     {
-        $this->expectException('Symfony\Component\Serializer\Exception\UnexpectedValueException');
+        $this->expectException(UnexpectedValueException::class);
         $this->normalizer->denormalize(['foo' => 'bar'], ObjectTypeHinted::class);
     }
 
@@ -910,7 +978,7 @@ class ObjectConstructorArgsWithDefaultValueDummy
     protected $foo;
     protected $bar;
 
-    public function __construct($foo = [], $bar)
+    public function __construct($foo = [], $bar = null)
     {
         $this->foo = $foo;
         $this->bar = $bar;
@@ -1060,7 +1128,7 @@ class DummyWithConstructorObjectAndDefaultValue
     private $foo;
     private $inner;
 
-    public function __construct($foo = 'a', ObjectInner $inner)
+    public function __construct($foo = 'a', ObjectInner $inner = null)
     {
         $this->foo = $foo;
         $this->inner = $inner;

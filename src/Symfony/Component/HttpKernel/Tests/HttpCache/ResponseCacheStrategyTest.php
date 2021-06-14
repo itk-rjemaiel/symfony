@@ -216,7 +216,7 @@ class ResponseCacheStrategyTest extends TestCase
         $cacheStrategy->add($embeddedResponse);
         $cacheStrategy->update($masterResponse);
 
-        $this->assertSame('60', $masterResponse->headers->getCacheControlDirective('s-maxage'));
+        $this->assertEqualsWithDelta(60, (int) $masterResponse->headers->getCacheControlDirective('s-maxage'), 1);
     }
 
     public function testResponseIsExpirableButNotValidateableWhenMasterResponseCombinesExpirationAndValidation()
@@ -239,6 +239,7 @@ class ResponseCacheStrategyTest extends TestCase
     }
 
     /**
+     * @group time-sensitive
      * @dataProvider cacheControlMergingProvider
      */
     public function testCacheControlMerging(array $expects, array $master, array $surrogates)

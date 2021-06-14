@@ -12,6 +12,8 @@
 namespace Symfony\Component\Console\Tests\Helper;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Exception\InvalidArgumentException;
+use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableCell;
@@ -332,6 +334,45 @@ TABLE
 +-------------------------------+-------------------------------+-----------------------------+
 | Cupiditate dicta atque porro, tempora exercitationem modi animi nulla nemo vel nihil!       |
 +-------------------------------+-------------------------------+-----------------------------+
+
+TABLE
+            ],
+            'Cell after colspan contains new line break' => [
+                ['Foo', 'Bar', 'Baz'],
+                [
+                    [
+                        new TableCell("foo\nbar", ['colspan' => 2]),
+                        "baz\nqux",
+                    ],
+                ],
+                'default',
+<<<'TABLE'
++-----+-----+-----+
+| Foo | Bar | Baz |
++-----+-----+-----+
+| foo       | baz |
+| bar       | qux |
++-----+-----+-----+
+
+TABLE
+            ],
+            'Cell after colspan contains multiple new lines' => [
+                ['Foo', 'Bar', 'Baz'],
+                [
+                    [
+                        new TableCell("foo\nbar", ['colspan' => 2]),
+                        "baz\nqux\nquux",
+                    ],
+                ],
+                'default',
+<<<'TABLE'
++-----+-----+------+
+| Foo | Bar | Baz  |
++-----+-----+------+
+| foo       | baz  |
+| bar       | qux  |
+|           | quux |
++-----+-----+------+
 
 TABLE
             ],
@@ -748,7 +789,7 @@ TABLE;
             ]);
 
         $style = new TableStyle();
-        $style->setPadType(STR_PAD_LEFT);
+        $style->setPadType(\STR_PAD_LEFT);
         $table->setColumnStyle(3, $style);
 
         $table->render();
@@ -769,8 +810,8 @@ TABLE;
 
     public function testThrowsWhenTheCellInAnArray()
     {
-        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
-        $this->expectExceptionMessage('A cell must be a TableCell, a scalar or an object implementing __toString, array given.');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A cell must be a TableCell, a scalar or an object implementing "__toString()", "array" given.');
         $table = new Table($output = $this->getOutputStream());
         $table
             ->setHeaders(['ISBN', 'Title', 'Author', 'Price'])
@@ -794,7 +835,7 @@ TABLE;
             ->setColumnWidth(3, 10);
 
         $style = new TableStyle();
-        $style->setPadType(STR_PAD_LEFT);
+        $style->setPadType(\STR_PAD_LEFT);
         $table->setColumnStyle(3, $style);
 
         $table->render();
@@ -825,7 +866,7 @@ TABLE;
             ->setColumnWidths([15, 0, -1, 10]);
 
         $style = new TableStyle();
-        $style->setPadType(STR_PAD_LEFT);
+        $style->setPadType(\STR_PAD_LEFT);
         $table->setColumnStyle(3, $style);
 
         $table->render();
@@ -944,16 +985,48 @@ TABLE;
 
     public function testAppendRowWithoutSectionOutput()
     {
-        $this->expectException('Symfony\Component\Console\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Output should be an instance of "Symfony\Component\Console\Output\ConsoleSectionOutput" when calling "Symfony\Component\Console\Helper\Table::appendRow".');
         $table = new Table($this->getOutputStream());
 
         $table->appendRow(['9971-5-0210-0', 'A Tale of Two Cities', 'Charles Dickens', '139.25']);
     }
 
+    public function testSectionOutputHandlesZeroRowsAfterRender()
+    {
+        $sections = [];
+        $stream = $this->getOutputStream(true);
+        $output = new ConsoleSectionOutput($stream->getStream(), $sections, $stream->getVerbosity(), $stream->isDecorated(), new OutputFormatter());
+        $output->writeln('My Table');
+        $table = new Table($output);
+        $table
+            ->setHeaders(['ISBN', 'Title', 'Author', 'Price'])
+            ->setRows([]);
+
+        $table->render();
+
+        $table->appendRow(['9971-5-0210-0', 'A Tale of Two Cities', 'Charles Dickens', '139.25']);
+
+        $expected =
+            <<<TABLE
+My Table
++------+-------+--------+-------+
+|\033[32m ISBN \033[39m|\033[32m Title \033[39m|\033[32m Author \033[39m|\033[32m Price \033[39m|
++------+-------+--------+-------+
+\x1b[3A\x1b[0J+---------------+----------------------+-----------------+--------+
+|\033[32m ISBN          \033[39m|\033[32m Title                \033[39m|\033[32m Author          \033[39m|\033[32m Price  \033[39m|
++---------------+----------------------+-----------------+--------+
+| 9971-5-0210-0 | A Tale of Two Cities | Charles Dickens | 139.25 |
++---------------+----------------------+-----------------+--------+
+
+TABLE;
+
+        $this->assertEquals($expected, $this->getOutputContent($output));
+    }
+
     public function testIsNotDefinedStyleException()
     {
-        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Style "absent" is not defined.');
         $table = new Table($this->getOutputStream());
         $table->setStyle('absent');
@@ -961,7 +1034,7 @@ TABLE;
 
     public function testGetStyleDefinition()
     {
-        $this->expectException('Symfony\Component\Console\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Style "absent" is not defined.');
         Table::getStyleDefinition('absent');
     }
@@ -1125,6 +1198,61 @@ TABLE;
         $this->assertSame($expected, $this->getOutputContent($output));
     }
 
+    public function provideRenderHorizontalTests()
+    {
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two', 'tree'], ['1', '2', '3']];
+        $expected = <<<EOTXT
++-----+------+---+
+| foo | one  | 1 |
+| bar | two  | 2 |
+| baz | tree | 3 |
++-----+------+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two'], ['1']];
+        $expected = <<<EOTXT
++-----+-----+---+
+| foo | one | 1 |
+| bar | two |   |
+| baz |     |   |
++-----+-----+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+
+        $headers = ['foo', 'bar', 'baz'];
+        $rows = [['one', 'two', 'tree'], new TableSeparator(), ['1', '2', '3']];
+        $expected = <<<EOTXT
++-----+------+---+
+| foo | one  | 1 |
+| bar | two  | 2 |
+| baz | tree | 3 |
++-----+------+---+
+
+EOTXT;
+        yield [$headers, $rows, $expected];
+    }
+
+    /**
+     * @dataProvider provideRenderHorizontalTests
+     */
+    public function testRenderHorizontal(array $headers, array $rows, string $expected)
+    {
+        $table = new Table($output = $this->getOutputStream());
+        $table
+            ->setHeaders($headers)
+            ->setRows($rows)
+            ->setHorizontal()
+        ;
+        $table->render();
+
+        $this->assertEquals($expected, $this->getOutputContent($output));
+    }
+
     protected function getOutputStream($decorated = false)
     {
         return new StreamOutput($this->stream, StreamOutput::VERBOSITY_NORMAL, $decorated);
@@ -1134,10 +1262,10 @@ TABLE;
     {
         rewind($output->getStream());
 
-        return str_replace(PHP_EOL, "\n", stream_get_contents($output->getStream()));
+        return str_replace(\PHP_EOL, "\n", stream_get_contents($output->getStream()));
     }
 
-    public function testWithColspanAndMaxWith(): void
+    public function testWithColspanAndMaxWith()
     {
         $table = new Table($output = $this->getOutputStream());
 

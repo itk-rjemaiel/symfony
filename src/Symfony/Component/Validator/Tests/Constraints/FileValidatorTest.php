@@ -14,6 +14,8 @@ namespace Symfony\Component\Validator\Tests\Constraints;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\FileValidator;
+use Symfony\Component\Validator\Exception\ConstraintDefinitionException;
+use Symfony\Component\Validator\Exception\UnexpectedValueException;
 use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
 
 abstract class FileValidatorTest extends ConstraintValidatorTestCase
@@ -45,7 +47,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
         }
 
         if (file_exists($this->path)) {
-            unlink($this->path);
+            @unlink($this->path);
         }
 
         $this->path = null;
@@ -68,7 +70,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
 
     public function testExpectsStringCompatibleTypeOrFile()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
+        $this->expectException(UnexpectedValueException::class);
         $this->validator->validate(new \stdClass(), new File());
     }
 
@@ -159,7 +161,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
      */
     public function testMaxSizeExceeded($bytesWritten, $limit, $sizeAsString, $limitAsString, $suffix)
     {
-        fseek($this->file, $bytesWritten - 1, SEEK_SET);
+        fseek($this->file, $bytesWritten - 1, \SEEK_SET);
         fwrite($this->file, '0');
         fclose($this->file);
 
@@ -208,7 +210,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
      */
     public function testMaxSizeNotExceeded($bytesWritten, $limit)
     {
-        fseek($this->file, $bytesWritten - 1, SEEK_SET);
+        fseek($this->file, $bytesWritten - 1, \SEEK_SET);
         fwrite($this->file, '0');
         fclose($this->file);
 
@@ -224,7 +226,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
 
     public function testInvalidMaxSize()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
+        $this->expectException(ConstraintDefinitionException::class);
         $constraint = new File([
             'maxSize' => '1abc',
         ]);
@@ -259,7 +261,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
      */
     public function testBinaryFormat($bytesWritten, $limit, $binaryFormat, $sizeAsString, $limitAsString, $suffix)
     {
-        fseek($this->file, $bytesWritten - 1, SEEK_SET);
+        fseek($this->file, $bytesWritten - 1, \SEEK_SET);
         fwrite($this->file, '0');
         fclose($this->file);
 
@@ -284,7 +286,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
     public function testValidMimeType()
     {
         $file = $this
-            ->getMockBuilder('Symfony\Component\HttpFoundation\File\File')
+            ->getMockBuilder(\Symfony\Component\HttpFoundation\File\File::class)
             ->setConstructorArgs([__DIR__.'/Fixtures/foo'])
             ->getMock();
         $file
@@ -308,7 +310,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
     public function testValidWildcardMimeType()
     {
         $file = $this
-            ->getMockBuilder('Symfony\Component\HttpFoundation\File\File')
+            ->getMockBuilder(\Symfony\Component\HttpFoundation\File\File::class)
             ->setConstructorArgs([__DIR__.'/Fixtures/foo'])
             ->getMock();
         $file
@@ -332,7 +334,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
     public function testInvalidMimeType()
     {
         $file = $this
-            ->getMockBuilder('Symfony\Component\HttpFoundation\File\File')
+            ->getMockBuilder(\Symfony\Component\HttpFoundation\File\File::class)
             ->setConstructorArgs([__DIR__.'/Fixtures/foo'])
             ->getMock();
         $file
@@ -363,7 +365,7 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
     public function testInvalidWildcardMimeType()
     {
         $file = $this
-            ->getMockBuilder('Symfony\Component\HttpFoundation\File\File')
+            ->getMockBuilder(\Symfony\Component\HttpFoundation\File\File::class)
             ->setConstructorArgs([__DIR__.'/Fixtures/foo'])
             ->getMock();
         $file
@@ -431,23 +433,23 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
     public function uploadedFileErrorProvider()
     {
         $tests = [
-            [(string) UPLOAD_ERR_FORM_SIZE, 'uploadFormSizeErrorMessage'],
-            [(string) UPLOAD_ERR_PARTIAL, 'uploadPartialErrorMessage'],
-            [(string) UPLOAD_ERR_NO_FILE, 'uploadNoFileErrorMessage'],
-            [(string) UPLOAD_ERR_NO_TMP_DIR, 'uploadNoTmpDirErrorMessage'],
-            [(string) UPLOAD_ERR_CANT_WRITE, 'uploadCantWriteErrorMessage'],
-            [(string) UPLOAD_ERR_EXTENSION, 'uploadExtensionErrorMessage'],
+            [(string) \UPLOAD_ERR_FORM_SIZE, 'uploadFormSizeErrorMessage'],
+            [(string) \UPLOAD_ERR_PARTIAL, 'uploadPartialErrorMessage'],
+            [(string) \UPLOAD_ERR_NO_FILE, 'uploadNoFileErrorMessage'],
+            [(string) \UPLOAD_ERR_NO_TMP_DIR, 'uploadNoTmpDirErrorMessage'],
+            [(string) \UPLOAD_ERR_CANT_WRITE, 'uploadCantWriteErrorMessage'],
+            [(string) \UPLOAD_ERR_EXTENSION, 'uploadExtensionErrorMessage'],
         ];
 
-        if (class_exists('Symfony\Component\HttpFoundation\File\UploadedFile')) {
+        if (class_exists(UploadedFile::class)) {
             // when no maxSize is specified on constraint, it should use the ini value
-            $tests[] = [(string) UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
+            $tests[] = [(string) \UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
                 '{{ limit }}' => UploadedFile::getMaxFilesize() / 1048576,
                 '{{ suffix }}' => 'MiB',
             ]];
 
             // it should use the smaller limitation (maxSize option in this case)
-            $tests[] = [(string) UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
+            $tests[] = [(string) \UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
                 '{{ limit }}' => 1,
                 '{{ suffix }}' => 'bytes',
             ], '1'];
@@ -456,18 +458,16 @@ abstract class FileValidatorTest extends ConstraintValidatorTestCase
             $reflection = new \ReflectionClass(\get_class(new FileValidator()));
             $method = $reflection->getMethod('factorizeSizes');
             $method->setAccessible(true);
-            list($sizeAsString, $limit, $suffix) = $method->invokeArgs(new FileValidator(), [0, UploadedFile::getMaxFilesize(), false]);
+            [, $limit, $suffix] = $method->invokeArgs(new FileValidator(), [0, UploadedFile::getMaxFilesize(), false]);
 
             // it correctly parses the maxSize option and not only uses simple string comparison
-            // 1000M should be bigger than the ini value
-            $tests[] = [(string) UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
+            // 1000G should be bigger than the ini value
+            $tests[] = [(string) \UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
                 '{{ limit }}' => $limit,
                 '{{ suffix }}' => $suffix,
-            ], '1000M'];
+            ], '1000G'];
 
-            // it correctly parses the maxSize option and not only uses simple string comparison
-            // 1000M should be bigger than the ini value
-            $tests[] = [(string) UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
+            $tests[] = [(string) \UPLOAD_ERR_INI_SIZE, 'uploadIniSizeErrorMessage', [
                 '{{ limit }}' => '0.1',
                 '{{ suffix }}' => 'MB',
             ], '100K'];

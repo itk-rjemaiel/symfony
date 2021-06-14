@@ -11,9 +11,14 @@
 
 namespace Symfony\Component\Messenger\Tests\Transport\Doctrine;
 
+use Doctrine\DBAL\Driver\PDO\Exception;
+use Doctrine\DBAL\Driver\PDOException;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Version;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Exception\MessageDecodingFailedException;
+use Symfony\Component\Messenger\Exception\TransportException;
 use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 use Symfony\Component\Messenger\Tests\Fixtures\DummyMessage;
 use Symfony\Component\Messenger\Transport\Doctrine\Connection;
@@ -55,7 +60,7 @@ class DoctrineReceiverTest extends TestCase
 
     public function testItRejectTheMessageIfThereIsAMessageDecodingFailedException()
     {
-        $this->expectException('Symfony\Component\Messenger\Exception\MessageDecodingFailedException');
+        $this->expectException(MessageDecodingFailedException::class);
         $serializer = $this->createMock(PhpSerializer::class);
         $serializer->method('decode')->willThrowException(new MessageDecodingFailedException());
 
@@ -65,6 +70,33 @@ class DoctrineReceiverTest extends TestCase
         $connection->expects($this->once())->method('reject');
 
         $receiver = new DoctrineReceiver($connection, $serializer);
+        $receiver->get();
+    }
+
+    public function testOccursRetryableExceptionFromConnection()
+    {
+        $serializer = $this->createSerializer();
+        $connection = $this->createMock(Connection::class);
+        $driverException = class_exists(Exception::class) ? Exception::new(new \PDOException('Deadlock', 40001)) : new PDOException(new \PDOException('Deadlock', 40001));
+        if (!class_exists(Version::class)) {
+            // This is doctrine/dbal 3.x
+            $deadlockException = new DeadlockException($driverException, null);
+        } else {
+            $deadlockException = new DeadlockException('Deadlock', $driverException);
+        }
+
+        $connection->method('get')->willThrowException($deadlockException);
+        $receiver = new DoctrineReceiver($connection, $serializer);
+        $this->assertSame([], $receiver->get());
+        $this->assertSame([], $receiver->get());
+        try {
+            $receiver->get();
+        } catch (TransportException $exception) {
+            // skip, and retry
+        }
+        $this->assertSame([], $receiver->get());
+        $this->assertSame([], $receiver->get());
+        $this->expectException(TransportException::class);
         $receiver->get();
     }
 
@@ -96,7 +128,7 @@ class DoctrineReceiverTest extends TestCase
         $this->assertEquals(new DummyMessage('Hi'), $actualEnvelope->getMessage());
     }
 
-    private function createDoctrineEnvelope()
+    private function createDoctrineEnvelope(): array
     {
         return [
             'id' => 1,

@@ -11,12 +11,16 @@
 
 namespace Symfony\Bridge\Doctrine\Tests\DataCollector;
 
+use Doctrine\DBAL\Logging\DebugStack;
 use Doctrine\DBAL\Platforms\MySqlPlatform;
 use Doctrine\DBAL\Version;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Doctrine\DataCollector\DoctrineDataCollector;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\VarDumper\Cloner\Data;
+use Symfony\Component\VarDumper\Dumper\CliDumper;
 
 class DoctrineDataCollectorTest extends TestCase
 {
@@ -73,7 +77,7 @@ class DoctrineDataCollectorTest extends TestCase
     /**
      * @dataProvider paramProvider
      */
-    public function testCollectQueries($param, $types, $expected, $explainable)
+    public function testCollectQueries($param, $types, $expected, $explainable, bool $runnable = true)
     {
         $queries = [
             ['sql' => 'SELECT * FROM table1 WHERE field1 = ?1', 'params' => [$param], 'types' => $types, 'executionMS' => 1],
@@ -82,8 +86,19 @@ class DoctrineDataCollectorTest extends TestCase
         $c->collect(new Request(), new Response());
 
         $collectedQueries = $c->getQueries();
-        $this->assertEquals($expected, $collectedQueries['default'][0]['params'][0]);
+
+        $collectedParam = $collectedQueries['default'][0]['params'][0];
+        if ($collectedParam instanceof Data) {
+            $dumper = new CliDumper($out = fopen('php://memory', 'r+'));
+            $dumper->setColors(false);
+            $collectedParam->dump($dumper);
+            $this->assertStringMatchesFormat($expected, print_r(stream_get_contents($out, -1, 0), true));
+        } else {
+            $this->assertEquals($expected, $collectedParam);
+        }
+
         $this->assertEquals($explainable, $collectedQueries['default'][0]['explainable']);
+        $this->assertSame($runnable, $collectedQueries['default'][0]['runnable']);
     }
 
     public function testCollectQueryWithNoParams()
@@ -96,10 +111,14 @@ class DoctrineDataCollectorTest extends TestCase
         $c->collect(new Request(), new Response());
 
         $collectedQueries = $c->getQueries();
-        $this->assertEquals([], $collectedQueries['default'][0]['params']);
+        $this->assertInstanceOf(Data::class, $collectedQueries['default'][0]['params']);
+        $this->assertEquals([], $collectedQueries['default'][0]['params']->getValue());
         $this->assertTrue($collectedQueries['default'][0]['explainable']);
-        $this->assertEquals([], $collectedQueries['default'][1]['params']);
+        $this->assertTrue($collectedQueries['default'][0]['runnable']);
+        $this->assertInstanceOf(Data::class, $collectedQueries['default'][1]['params']);
+        $this->assertEquals([], $collectedQueries['default'][1]['params']->getValue());
         $this->assertTrue($collectedQueries['default'][1]['explainable']);
+        $this->assertTrue($collectedQueries['default'][1]['runnable']);
     }
 
     public function testCollectQueryWithNoTypes()
@@ -131,7 +150,7 @@ class DoctrineDataCollectorTest extends TestCase
     /**
      * @dataProvider paramProvider
      */
-    public function testSerialization($param, $types, $expected, $explainable)
+    public function testSerialization($param, $types, $expected, $explainable, bool $runnable = true)
     {
         $queries = [
             ['sql' => 'SELECT * FROM table1 WHERE field1 = ?1', 'params' => [$param], 'types' => $types, 'executionMS' => 1],
@@ -141,8 +160,19 @@ class DoctrineDataCollectorTest extends TestCase
         $c = unserialize(serialize($c));
 
         $collectedQueries = $c->getQueries();
-        $this->assertEquals($expected, $collectedQueries['default'][0]['params'][0]);
+
+        $collectedParam = $collectedQueries['default'][0]['params'][0];
+        if ($collectedParam instanceof Data) {
+            $dumper = new CliDumper($out = fopen('php://memory', 'r+'));
+            $dumper->setColors(false);
+            $collectedParam->dump($dumper);
+            $this->assertStringMatchesFormat($expected, print_r(stream_get_contents($out, -1, 0), true));
+        } else {
+            $this->assertEquals($expected, $collectedParam);
+        }
+
         $this->assertEquals($explainable, $collectedQueries['default'][0]['explainable']);
+        $this->assertSame($runnable, $collectedQueries['default'][0]['runnable']);
     }
 
     public function paramProvider()
@@ -153,19 +183,46 @@ class DoctrineDataCollectorTest extends TestCase
             [true, [], true, true],
             [null, [], null, true],
             [new \DateTime('2011-09-11'), ['date'], '2011-09-11', true],
-            [fopen(__FILE__, 'r'), [], '/* Resource(stream) */', false],
-            [new \stdClass(), [], '/* Object(stdClass) */', false],
+            [fopen(__FILE__, 'r'), [], '/* Resource(stream) */', false, false],
+            [
+                new \stdClass(),
+                [],
+                <<<EOTXT
+{#%d
+  ⚠: "Object of class "stdClass" could not be converted to string."
+}
+EOTXT
+                ,
+                false,
+                false,
+            ],
             [
                 new StringRepresentableClass(),
                 [],
-                '/* Object(Symfony\Bridge\Doctrine\Tests\DataCollector\StringRepresentableClass): */"string representation"',
+                <<<EOTXT
+Symfony\Bridge\Doctrine\Tests\DataCollector\StringRepresentableClass {#%d
+  __toString(): "string representation"
+}
+EOTXT
+                ,
                 false,
             ],
         ];
 
         if (version_compare(Version::VERSION, '2.6', '>=')) {
-            $tests[] = ['this is not a date', ['date'], 'this is not a date', false];
-            $tests[] = [new \stdClass(), ['date'], '/* Object(stdClass) */', false];
+            $tests[] = ['this is not a date', ['date'], "⚠ Could not convert PHP value 'this is not a date' of type 'string' to type 'date'. Expected one of the following types: null, DateTime", false, false];
+            $tests[] = [
+                new \stdClass(),
+                ['date'],
+                <<<EOTXT
+{#%d
+  ⚠: "Could not convert PHP value of type 'stdClass' to type 'date'. Expected one of the following types: null, DateTime"
+}
+EOTXT
+                ,
+                false,
+                false,
+            ];
         }
 
         return $tests;
@@ -173,14 +230,14 @@ class DoctrineDataCollectorTest extends TestCase
 
     private function createCollector($queries)
     {
-        $connection = $this->getMockBuilder('Doctrine\DBAL\Connection')
+        $connection = $this->getMockBuilder(\Doctrine\DBAL\Connection::class)
             ->disableOriginalConstructor()
             ->getMock();
         $connection->expects($this->any())
             ->method('getDatabasePlatform')
             ->willReturn(new MySqlPlatform());
 
-        $registry = $this->getMockBuilder('Doctrine\Common\Persistence\ManagerRegistry')->getMock();
+        $registry = $this->createMock(ManagerRegistry::class);
         $registry
             ->expects($this->any())
             ->method('getConnectionNames')
@@ -193,7 +250,7 @@ class DoctrineDataCollectorTest extends TestCase
             ->method('getConnection')
             ->willReturn($connection);
 
-        $logger = $this->getMockBuilder('Doctrine\DBAL\Logging\DebugStack')->getMock();
+        $logger = $this->createMock(DebugStack::class);
         $logger->queries = $queries;
 
         $collector = new DoctrineDataCollector($registry);

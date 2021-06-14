@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Controller\ControllerReference;
 use Symfony\Component\HttpKernel\Fragment\HIncludeFragmentRenderer;
 use Symfony\Component\HttpKernel\UriSigner;
+use Symfony\Component\Templating\EngineInterface;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 
@@ -23,7 +24,7 @@ class HIncludeFragmentRendererTest extends TestCase
 {
     public function testRenderExceptionWhenControllerAndNoSigner()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $strategy = new HIncludeFragmentRenderer();
         $strategy->render(new ControllerReference('main_controller', [], []), Request::create('/'));
     }
@@ -86,7 +87,7 @@ class HIncludeFragmentRendererTest extends TestCase
      */
     public function testRenderWithDefaultTextLegacy()
     {
-        $engine = $this->getMockBuilder('Symfony\\Component\\Templating\\EngineInterface')->getMock();
+        $engine = $this->createMock(EngineInterface::class);
         $engine->expects($this->once())
             ->method('exists')
             ->with('default')

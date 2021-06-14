@@ -14,6 +14,7 @@ namespace Symfony\Bundle\SecurityBundle\Tests\DependencyInjection\Security\Facto
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\Security\Factory\GuardAuthenticationFactory;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
@@ -41,7 +42,7 @@ class GuardAuthenticationFactoryTest extends TestCase
      */
     public function testAddInvalidConfiguration(array $inputConfig)
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $factory = new GuardAuthenticationFactory();
         $nodeDefinition = new ArrayNodeDefinition('guard');
         $factory->addConfiguration($nodeDefinition);
@@ -103,7 +104,7 @@ class GuardAuthenticationFactoryTest extends TestCase
             'authenticators' => ['authenticator123'],
             'entry_point' => null,
         ];
-        list($container, $entryPointId) = $this->executeCreate($config, null);
+        [$container, $entryPointId] = $this->executeCreate($config, null);
         $this->assertEquals('authenticator123', $entryPointId);
 
         $providerDefinition = $container->getDefinition('security.authentication.provider.guard.my_firewall');
@@ -126,13 +127,13 @@ class GuardAuthenticationFactoryTest extends TestCase
             'authenticators' => ['authenticator123'],
             'entry_point' => null,
         ];
-        list(, $entryPointId) = $this->executeCreate($config, 'some_default_entry_point');
+        [, $entryPointId] = $this->executeCreate($config, 'some_default_entry_point');
         $this->assertEquals('some_default_entry_point', $entryPointId);
     }
 
     public function testCannotOverrideDefaultEntryPoint()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         // any existing default entry point is used
         $config = [
             'authenticators' => ['authenticator123'],
@@ -143,7 +144,7 @@ class GuardAuthenticationFactoryTest extends TestCase
 
     public function testMultipleAuthenticatorsRequiresEntryPoint()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         // any existing default entry point is used
         $config = [
             'authenticators' => ['authenticator123', 'authenticatorABC'],
@@ -159,7 +160,7 @@ class GuardAuthenticationFactoryTest extends TestCase
             'authenticators' => ['authenticator123', 'authenticatorABC'],
             'entry_point' => 'authenticatorABC',
         ];
-        list($container, $entryPointId) = $this->executeCreate($config, null);
+        [, $entryPointId] = $this->executeCreate($config, null);
         $this->assertEquals('authenticatorABC', $entryPointId);
     }
 
@@ -172,7 +173,7 @@ class GuardAuthenticationFactoryTest extends TestCase
         $userProviderId = 'my_user_provider';
 
         $factory = new GuardAuthenticationFactory();
-        list($providerId, $listenerId, $entryPointId) = $factory->create($container, $id, $config, $userProviderId, $defaultEntryPointId);
+        [, , $entryPointId] = $factory->create($container, $id, $config, $userProviderId, $defaultEntryPointId);
 
         return [$container, $entryPointId];
     }

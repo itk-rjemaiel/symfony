@@ -12,6 +12,7 @@
 namespace Symfony\Bridge\Doctrine\Tests\Logger;
 
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Doctrine\Logger\DbalLogger;
 
 class DbalLoggerTest extends TestCase
@@ -21,10 +22,10 @@ class DbalLoggerTest extends TestCase
      */
     public function testLog($sql, $params, $logParams)
     {
-        $logger = $this->getMockBuilder('Psr\\Log\\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
 
         $dbalLogger = $this
-            ->getMockBuilder('Symfony\\Bridge\\Doctrine\\Logger\\DbalLogger')
+            ->getMockBuilder(DbalLogger::class)
             ->setConstructorArgs([$logger, null])
             ->setMethods(['log'])
             ->getMock()
@@ -53,10 +54,10 @@ class DbalLoggerTest extends TestCase
 
     public function testLogNonUtf8()
     {
-        $logger = $this->getMockBuilder('Psr\\Log\\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
 
         $dbalLogger = $this
-            ->getMockBuilder('Symfony\\Bridge\\Doctrine\\Logger\\DbalLogger')
+            ->getMockBuilder(DbalLogger::class)
             ->setConstructorArgs([$logger, null])
             ->setMethods(['log'])
             ->getMock()
@@ -76,10 +77,10 @@ class DbalLoggerTest extends TestCase
 
     public function testLogNonUtf8Array()
     {
-        $logger = $this->getMockBuilder('Psr\\Log\\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
 
         $dbalLogger = $this
-            ->getMockBuilder('Symfony\\Bridge\\Doctrine\\Logger\\DbalLogger')
+            ->getMockBuilder(DbalLogger::class)
             ->setConstructorArgs([$logger, null])
             ->setMethods(['log'])
             ->getMock()
@@ -107,10 +108,10 @@ class DbalLoggerTest extends TestCase
 
     public function testLogLongString()
     {
-        $logger = $this->getMockBuilder('Psr\\Log\\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
 
         $dbalLogger = $this
-            ->getMockBuilder('Symfony\\Bridge\\Doctrine\\Logger\\DbalLogger')
+            ->getMockBuilder(DbalLogger::class)
             ->setConstructorArgs([$logger, null])
             ->setMethods(['log'])
             ->getMock()
@@ -135,10 +136,10 @@ class DbalLoggerTest extends TestCase
 
     public function testLogUTF8LongString()
     {
-        $logger = $this->getMockBuilder('Psr\\Log\\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
 
         $dbalLogger = $this
-            ->getMockBuilder('Symfony\\Bridge\\Doctrine\\Logger\\DbalLogger')
+            ->getMockBuilder(DbalLogger::class)
             ->setConstructorArgs([$logger, null])
             ->setMethods(['log'])
             ->getMock()

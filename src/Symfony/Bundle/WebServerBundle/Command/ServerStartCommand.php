@@ -58,7 +58,7 @@ class ServerStartCommand extends Command
                 new InputOption('router', 'r', InputOption::VALUE_REQUIRED, 'Path to custom router script'),
                 new InputOption('pidfile', null, InputOption::VALUE_REQUIRED, 'PID file'),
             ])
-            ->setDescription('Starts a local web server in the background')
+            ->setDescription('Start a local web server in the background')
             ->setHelp(<<<'EOF'
 <info>%command.name%</info> runs a local web server: By default, the server
 listens on <comment>127.0.0.1</> address and the port number is automatically selected
@@ -92,7 +92,7 @@ EOF
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        @trigger_error('Using the WebserverBundle is deprecated since Symfony 4.4. The new Symfony local server has more features, you can use it instead.', E_USER_DEPRECATED);
+        @trigger_error('Using the WebserverBundle is deprecated since Symfony 4.4. The new Symfony local server has more features, you can use it instead.', \E_USER_DEPRECATED);
 
         $io = new SymfonyStyle($input, $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output);
 
@@ -164,6 +164,6 @@ EOF
             return 1;
         }
 
-        return null;
+        return 0;
     }
 }

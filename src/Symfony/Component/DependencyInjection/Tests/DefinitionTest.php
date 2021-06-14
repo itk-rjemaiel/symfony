@@ -12,7 +12,9 @@
 namespace Symfony\Component\DependencyInjection\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Parameter;
 use Symfony\Component\DependencyInjection\Reference;
 
@@ -88,6 +90,13 @@ class DefinitionTest extends TestCase
     {
         $def = new Definition('stdClass');
         $this->assertNull($def->getDecoratedService());
+        $def->setDecoratedService('foo', 'foo.renamed', 5, ContainerInterface::NULL_ON_INVALID_REFERENCE);
+        $this->assertEquals(['foo', 'foo.renamed', 5, ContainerInterface::NULL_ON_INVALID_REFERENCE], $def->getDecoratedService());
+        $def->setDecoratedService(null);
+        $this->assertNull($def->getDecoratedService());
+
+        $def = new Definition('stdClass');
+        $this->assertNull($def->getDecoratedService());
         $def->setDecoratedService('foo', 'foo.renamed', 5);
         $this->assertEquals(['foo', 'foo.renamed', 5], $def->getDecoratedService());
         $def->setDecoratedService(null);
@@ -108,7 +117,7 @@ class DefinitionTest extends TestCase
 
         $def = new Definition('stdClass');
 
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('The decorated service inner name for "foo" must be different than the service name itself.');
 
         $def->setDecoratedService('foo', 'foo');
@@ -144,7 +153,7 @@ class DefinitionTest extends TestCase
 
     public function testExceptionOnEmptyMethodCall()
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Method name cannot be empty.');
         $def = new Definition('stdClass');
         $def->addMethodCall('');
@@ -213,7 +222,7 @@ class DefinitionTest extends TestCase
      */
     public function testSetDeprecatedWithInvalidDeprecationTemplate($message)
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $def = new Definition('stdClass');
         $def->setDeprecated(false, $message);
     }
@@ -272,10 +281,10 @@ class DefinitionTest extends TestCase
         $def->addTag('foo', ['foo' => 'bar']);
         $this->assertEquals([[], ['foo' => 'bar']], $def->getTag('foo'), '->addTag() can adds the same tag several times');
         $def->addTag('bar', ['bar' => 'bar']);
-        $this->assertEquals($def->getTags(), [
+        $this->assertEquals([
             'foo' => [[], ['foo' => 'bar']],
             'bar' => [['bar' => 'bar']],
-        ], '->getTags() returns all tags');
+        ], $def->getTags(), '->getTags() returns all tags');
     }
 
     public function testSetArgument()
@@ -298,7 +307,7 @@ class DefinitionTest extends TestCase
 
     public function testGetArgumentShouldCheckBounds()
     {
-        $this->expectException('OutOfBoundsException');
+        $this->expectException(\OutOfBoundsException::class);
         $def = new Definition('stdClass');
 
         $def->addArgument('foo');
@@ -307,7 +316,7 @@ class DefinitionTest extends TestCase
 
     public function testReplaceArgumentShouldCheckBounds()
     {
-        $this->expectException('OutOfBoundsException');
+        $this->expectException(\OutOfBoundsException::class);
         $this->expectExceptionMessage('The index "1" is not in the range [0, 0].');
         $def = new Definition('stdClass');
 
@@ -317,7 +326,7 @@ class DefinitionTest extends TestCase
 
     public function testReplaceArgumentWithoutExistingArgumentsShouldCheckBounds()
     {
-        $this->expectException('OutOfBoundsException');
+        $this->expectException(\OutOfBoundsException::class);
         $this->expectExceptionMessage('Cannot replace arguments if none have been configured yet.');
         $def = new Definition('stdClass');
         $def->replaceArgument(0, 'bar');
@@ -415,5 +424,21 @@ class DefinitionTest extends TestCase
         $def->addError('First error');
         $def->addError('Second error');
         $this->assertSame(['First error', 'Second error'], $def->getErrors());
+    }
+
+    public function testMultipleMethodCalls()
+    {
+        $def = new Definition('stdClass');
+
+        $def->addMethodCall('configure', ['arg1']);
+        $this->assertTrue($def->hasMethodCall('configure'));
+        $this->assertCount(1, $def->getMethodCalls());
+
+        $def->addMethodCall('configure', ['arg2']);
+        $this->assertTrue($def->hasMethodCall('configure'));
+        $this->assertCount(2, $def->getMethodCalls());
+
+        $def->removeMethodCall('configure');
+        $this->assertFalse($def->hasMethodCall('configure'));
     }
 }

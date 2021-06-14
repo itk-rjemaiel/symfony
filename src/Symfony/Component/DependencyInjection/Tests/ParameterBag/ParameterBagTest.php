@@ -61,7 +61,7 @@ class ParameterBagTest extends TestCase
             $bag->get('baba');
             $this->fail('->get() throws an Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException if the key does not exist');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException', $e, '->get() throws an Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException if the key does not exist');
+            $this->assertInstanceOf(ParameterNotFoundException::class, $e, '->get() throws an Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException if the key does not exist');
             $this->assertEquals('You have requested a non-existent parameter "baba".', $e->getMessage(), '->get() throws an Symfony\Component\DependencyInjection\Exception\ParameterNotFoundException if the key does not exist');
         }
     }
@@ -162,7 +162,7 @@ class ParameterBagTest extends TestCase
             $bag->resolveValue('%foo%');
             $this->fail('->resolveValue() throws a RuntimeException when a parameter embeds another non-string parameter');
         } catch (RuntimeException $e) {
-            $this->assertEquals('A string value must be composed of strings and/or numbers, but found parameter "bar" of type array inside string value "a %bar%".', $e->getMessage(), '->resolveValue() throws a RuntimeException when a parameter embeds another non-string parameter');
+            $this->assertEquals('A string value must be composed of strings and/or numbers, but found parameter "bar" of type "array" inside string value "a %bar%".', $e->getMessage(), '->resolveValue() throws a RuntimeException when a parameter embeds another non-string parameter');
         }
 
         $bag = new ParameterBag(['foo' => '%bar%', 'bar' => '%foobar%', 'foobar' => '%foo%']);

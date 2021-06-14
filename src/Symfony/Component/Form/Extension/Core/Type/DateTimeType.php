@@ -25,21 +25,22 @@ use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Form\ReversedTransformer;
 use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
+use Symfony\Component\OptionsResolver\Exception\OptionDefinitionException;
 use Symfony\Component\OptionsResolver\Options;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class DateTimeType extends AbstractType
 {
-    const DEFAULT_DATE_FORMAT = \IntlDateFormatter::MEDIUM;
-    const DEFAULT_TIME_FORMAT = \IntlDateFormatter::MEDIUM;
+    public const DEFAULT_DATE_FORMAT = \IntlDateFormatter::MEDIUM;
+    public const DEFAULT_TIME_FORMAT = \IntlDateFormatter::MEDIUM;
 
     /**
      * The HTML5 datetime-local format as defined in
      * http://w3c.github.io/html-reference/datatypes.html#form.data.datetime-local.
      */
-    const HTML5_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
+    public const HTML5_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
 
-    private static $acceptedFormats = [
+    private const ACCEPTED_FORMATS = [
         \IntlDateFormatter::FULL,
         \IntlDateFormatter::LONG,
         \IntlDateFormatter::MEDIUM,
@@ -70,7 +71,7 @@ class DateTimeType extends AbstractType
         $calendar = \IntlDateFormatter::GREGORIAN;
         $pattern = \is_string($options['format']) ? $options['format'] : null;
 
-        if (!\in_array($dateFormat, self::$acceptedFormats, true)) {
+        if (!\in_array($dateFormat, self::ACCEPTED_FORMATS, true)) {
             throw new InvalidOptionsException('The "date_format" option must be one of the IntlDateFormatter constants (FULL, LONG, MEDIUM, SHORT) or a string representing a custom format.');
         }
 
@@ -108,7 +109,17 @@ class DateTimeType extends AbstractType
                 'invalid_message_parameters',
             ]));
 
-            if (isset($emptyData['date'])) {
+            if ($emptyData instanceof \Closure) {
+                $lazyEmptyData = static function ($option) use ($emptyData) {
+                    return static function (FormInterface $form) use ($emptyData, $option) {
+                        $emptyData = $emptyData($form->getParent());
+
+                        return $emptyData[$option] ?? '';
+                    };
+                };
+
+                $dateOptions['empty_data'] = $lazyEmptyData('date');
+            } elseif (isset($emptyData['date'])) {
                 $dateOptions['empty_data'] = $emptyData['date'];
             }
 
@@ -127,7 +138,9 @@ class DateTimeType extends AbstractType
                 'invalid_message_parameters',
             ]));
 
-            if (isset($emptyData['time'])) {
+            if ($emptyData instanceof \Closure) {
+                $timeOptions['empty_data'] = $lazyEmptyData('time');
+            } elseif (isset($emptyData['time'])) {
                 $timeOptions['empty_data'] = $emptyData['time'];
             }
 
@@ -171,8 +184,8 @@ class DateTimeType extends AbstractType
                         'time' => $timeParts,
                     ]),
                 ]))
-                ->add('date', __NAMESPACE__.'\DateType', $dateOptions)
-                ->add('time', __NAMESPACE__.'\TimeType', $timeOptions)
+                ->add('date', DateType::class, $dateOptions)
+                ->add('time', TimeType::class, $timeOptions)
             ;
         }
 
@@ -200,12 +213,20 @@ class DateTimeType extends AbstractType
     {
         $view->vars['widget'] = $options['widget'];
 
-        // Change the input to a HTML5 datetime input if
+        // Change the input to an HTML5 datetime input if
         //  * the widget is set to "single_text"
         //  * the format matches the one expected by HTML5
         //  * the html5 is set to true
         if ($options['html5'] && 'single_text' === $options['widget'] && self::HTML5_FORMAT === $options['format']) {
             $view->vars['type'] = 'datetime-local';
+
+            // we need to force the browser to display the seconds by
+            // adding the HTML attribute step if not already defined.
+            // Otherwise the browser will not display and so not send the seconds
+            // therefore the value will always be considered as invalid.
+            if ($options['with_seconds'] && !isset($view->vars['attr']['step'])) {
+                $view->vars['attr']['step'] = 1;
+            }
         }
     }
 
@@ -303,7 +324,7 @@ class DateTimeType extends AbstractType
         $resolver->setDeprecated('date_format', function (Options $options, $dateFormat) {
             if (null !== $dateFormat && 'single_text' === $options['widget'] && self::HTML5_FORMAT === $options['format']) {
                 return sprintf('Using the "date_format" option of %s with an HTML5 date widget is deprecated since Symfony 4.3 and will lead to an exception in 5.0.', self::class);
-                //throw new LogicException(sprintf('Cannot use the "date_format" option of the %s with an HTML5 date.', self::class));
+                //throw new LogicException(sprintf('Cannot use the "date_format" option of the "%s" with an HTML5 date.', self::class));
             }
 
             return '';
@@ -311,7 +332,7 @@ class DateTimeType extends AbstractType
         $resolver->setDeprecated('date_widget', function (Options $options, $dateWidget) {
             if (null !== $dateWidget && 'single_text' === $options['widget']) {
                 return sprintf('Using the "date_widget" option of %s when the "widget" option is set to "single_text" is deprecated since Symfony 4.3 and will lead to an exception in 5.0.', self::class);
-                //throw new LogicException(sprintf('Cannot use the "date_widget" option of the %s when the "widget" option is set to "single_text".', self::class));
+                //throw new LogicException(sprintf('Cannot use the "date_widget" option of the "%s" when the "widget" option is set to "single_text".', self::class));
             }
 
             return '';
@@ -319,19 +340,28 @@ class DateTimeType extends AbstractType
         $resolver->setDeprecated('time_widget', function (Options $options, $timeWidget) {
             if (null !== $timeWidget && 'single_text' === $options['widget']) {
                 return sprintf('Using the "time_widget" option of %s when the "widget" option is set to "single_text" is deprecated since Symfony 4.3 and will lead to an exception in 5.0.', self::class);
-                //throw new LogicException(sprintf('Cannot use the "time_widget" option of the %s when the "widget" option is set to "single_text".', self::class));
+                //throw new LogicException(sprintf('Cannot use the "time_widget" option of the "%s" when the "widget" option is set to "single_text".', self::class));
             }
 
             return '';
         });
-        $resolver->setDeprecated('html5', function (Options $options, $html5) {
-            if ($html5 && self::HTML5_FORMAT !== $options['format']) {
-                return sprintf('Using a custom format when the "html5" option of %s is enabled is deprecated since Symfony 4.3 and will lead to an exception in 5.0.', self::class);
-                //throw new LogicException(sprintf('Cannot use the "format" option of %s when the "html5" option is disabled.', self::class));
-            }
+        foreach (['html5', 'format'] as $option) {
+            $resolver->setDeprecated($option, static function (Options $options, $value) use ($option): string {
+                try {
+                    $html5 = 'html5' === $option ? $value : $options['html5'];
+                    $format = 'format' === $option ? $value : $options['format'];
+                } catch (OptionDefinitionException $e) {
+                    return '';
+                }
 
-            return '';
-        });
+                if ($html5 && self::HTML5_FORMAT !== $format) {
+                    return sprintf('Using a custom format when the "html5" option of %s is enabled is deprecated since Symfony 4.3 and will lead to an exception in 5.0.', self::class);
+                    //throw new LogicException(sprintf('Cannot use the "format" option of "%s" when the "html5" option is disabled.', self::class));
+                }
+
+                return '';
+            });
+        }
     }
 
     /**

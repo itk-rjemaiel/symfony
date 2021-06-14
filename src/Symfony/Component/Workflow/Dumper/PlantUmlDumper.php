@@ -31,10 +31,10 @@ class PlantUmlDumper implements DumperInterface
     private const INITIAL = '<<initial>>';
     private const MARKED = '<<marked>>';
 
-    const STATEMACHINE_TRANSITION = 'arrow';
-    const WORKFLOW_TRANSITION = 'square';
-    const TRANSITION_TYPES = [self::STATEMACHINE_TRANSITION, self::WORKFLOW_TRANSITION];
-    const DEFAULT_OPTIONS = [
+    public const STATEMACHINE_TRANSITION = 'arrow';
+    public const WORKFLOW_TRANSITION = 'square';
+    public const TRANSITION_TYPES = [self::STATEMACHINE_TRANSITION, self::WORKFLOW_TRANSITION];
+    public const DEFAULT_OPTIONS = [
         'skinparams' => [
             'titleBorderRoundCorner' => 15,
             'titleBorderThickness' => 2,
@@ -128,20 +128,20 @@ class PlantUmlDumper implements DumperInterface
 
     private function startPuml(array $options): string
     {
-        $start = '@startuml'.PHP_EOL;
-        $start .= 'allow_mixing'.PHP_EOL;
+        $start = '@startuml'.\PHP_EOL;
+        $start .= 'allow_mixing'.\PHP_EOL;
 
         return $start;
     }
 
     private function endPuml(array $options): string
     {
-        return PHP_EOL.'@enduml';
+        return \PHP_EOL.'@enduml';
     }
 
     private function getLines(array $code): string
     {
-        return implode(PHP_EOL, $code);
+        return implode(\PHP_EOL, $code);
     }
 
     private function initialize(array $options, Definition $definition): array
@@ -210,7 +210,7 @@ class PlantUmlDumper implements DumperInterface
         $description = $workflowMetadata->getMetadata('description', $place);
         if (null !== $description) {
             $output .= ' as '.$place.
-                PHP_EOL.
+                \PHP_EOL.
                 $place.' : '.$description;
         }
 

@@ -56,24 +56,25 @@ class InlineTest extends TestCase
     {
         return [
             ['!php/const Symfony\Component\Yaml\Yaml::PARSE_CONSTANT', Yaml::PARSE_CONSTANT],
-            ['!php/const PHP_INT_MAX', PHP_INT_MAX],
-            ['[!php/const PHP_INT_MAX]', [PHP_INT_MAX]],
-            ['{ foo: !php/const PHP_INT_MAX }', ['foo' => PHP_INT_MAX]],
+            ['!php/const PHP_INT_MAX', \PHP_INT_MAX],
+            ['[!php/const PHP_INT_MAX]', [\PHP_INT_MAX]],
+            ['{ foo: !php/const PHP_INT_MAX }', ['foo' => \PHP_INT_MAX]],
+            ['{ !php/const PHP_INT_MAX: foo }', [\PHP_INT_MAX => 'foo']],
             ['!php/const NULL', null],
         ];
     }
 
     public function testParsePhpConstantThrowsExceptionWhenUndefined()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('The constant "WRONG_CONSTANT" is not defined');
         Inline::parse('!php/const WRONG_CONSTANT', Yaml::PARSE_CONSTANT);
     }
 
     public function testParsePhpConstantThrowsExceptionOnInvalidType()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp('#The string "!php/const PHP_INT_MAX" could not be parsed as a constant.*#');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches('#The string "!php/const PHP_INT_MAX" could not be parsed as a constant.*#');
         Inline::parse('!php/const PHP_INT_MAX', Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE);
     }
 
@@ -89,21 +90,21 @@ class InlineTest extends TestCase
 
     public function testDumpNumericValueWithLocale()
     {
-        $locale = setlocale(LC_NUMERIC, 0);
+        $locale = setlocale(\LC_NUMERIC, 0);
         if (false === $locale) {
             $this->markTestSkipped('Your platform does not support locales.');
         }
 
         try {
             $requiredLocales = ['fr_FR.UTF-8', 'fr_FR.UTF8', 'fr_FR.utf-8', 'fr_FR.utf8', 'French_France.1252'];
-            if (false === setlocale(LC_NUMERIC, $requiredLocales)) {
+            if (false === setlocale(\LC_NUMERIC, $requiredLocales)) {
                 $this->markTestSkipped('Could not set any of required locales: '.implode(', ', $requiredLocales));
             }
 
             $this->assertEquals('1.2', Inline::dump(1.2));
-            $this->assertStringContainsStringIgnoringCase('fr', setlocale(LC_NUMERIC, 0));
+            $this->assertStringContainsStringIgnoringCase('fr', setlocale(\LC_NUMERIC, 0));
         } finally {
-            setlocale(LC_NUMERIC, $locale);
+            setlocale(\LC_NUMERIC, $locale);
         }
     }
 
@@ -116,55 +117,61 @@ class InlineTest extends TestCase
 
     public function testParseScalarWithNonEscapedBlackslashShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Found unknown escape character "\V".');
         Inline::parse('"Foo\Var"');
     }
 
     public function testParseScalarWithNonEscapedBlackslashAtTheEndShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         Inline::parse('"Foo\\"');
     }
 
     public function testParseScalarWithIncorrectlyQuotedStringShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $value = "'don't do somthin' like that'";
         Inline::parse($value);
     }
 
     public function testParseScalarWithIncorrectlyDoubleQuotedStringShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $value = '"don"t do somthin" like that"';
         Inline::parse($value);
     }
 
     public function testParseInvalidMappingKeyShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $value = '{ "foo " bar": "bar" }';
         Inline::parse($value);
     }
 
     public function testParseMappingKeyWithColonNotFollowedBySpace()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Colons must be followed by a space or an indication character (i.e. " ", ",", "[", "]", "{", "}")');
         Inline::parse('{foo:""}');
     }
 
     public function testParseInvalidMappingShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         Inline::parse('[foo] bar');
     }
 
     public function testParseInvalidSequenceShouldThrowException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         Inline::parse('{ foo: bar } bar');
+    }
+
+    public function testParseInvalidTaggedSequenceShouldThrowException()
+    {
+        $this->expectException(ParseException::class);
+        Inline::parse('!foo { bar: baz } qux', Yaml::PARSE_CUSTOM_TAGS);
     }
 
     public function testParseScalarWithCorrectlyQuotedStringShouldReturnString()
@@ -180,7 +187,8 @@ class InlineTest extends TestCase
      */
     public function testParseReferences($yaml, $expected)
     {
-        $this->assertSame($expected, Inline::parse($yaml, 0, ['var' => 'var-value']));
+        $references = ['var' => 'var-value'];
+        $this->assertSame($expected, Inline::parse($yaml, 0, $references));
     }
 
     public function getDataForParseReferences()
@@ -204,19 +212,20 @@ class InlineTest extends TestCase
             'b' => 'Clark',
             'c' => 'Brian',
         ];
-        $this->assertSame([$foo], Inline::parse('[*foo]', 0, ['foo' => $foo]));
+        $references = ['foo' => $foo];
+        $this->assertSame([$foo], Inline::parse('[*foo]', 0, $references));
     }
 
     public function testParseUnquotedAsterisk()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('A reference must contain at least one character at line 1.');
         Inline::parse('{ foo: * }');
     }
 
     public function testParseUnquotedAsteriskFollowedByAComment()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('A reference must contain at least one character at line 1.');
         Inline::parse('{ foo: * #foo }');
     }
@@ -314,7 +323,7 @@ class InlineTest extends TestCase
             ['2007-10-30T02:59:43Z', gmmktime(2, 59, 43, 10, 30, 2007)],
             ['2007-10-30 02:59:43 Z', gmmktime(2, 59, 43, 10, 30, 2007)],
             ['1960-10-30 02:59:43 Z', gmmktime(2, 59, 43, 10, 30, 1960)],
-            ['1730-10-30T02:59:43Z', gmmktime(2, 59, 43, 10, 30, 1730)],
+            ['1730-10-30T02:59:43Z', \PHP_INT_SIZE === 4 ? '-7547547617' : gmmktime(2, 59, 43, 10, 30, 1730)],
 
             ['"a \\"string\\" with \'quoted strings inside\'"', 'a "string" with \'quoted strings inside\''],
             ["'a \"string\" with ''quoted strings inside'''", 'a "string" with \'quoted strings inside\''],
@@ -385,7 +394,7 @@ class InlineTest extends TestCase
             ['2007-10-30T02:59:43Z', gmmktime(2, 59, 43, 10, 30, 2007)],
             ['2007-10-30 02:59:43 Z', gmmktime(2, 59, 43, 10, 30, 2007)],
             ['1960-10-30 02:59:43 Z', gmmktime(2, 59, 43, 10, 30, 1960)],
-            ['1730-10-30T02:59:43Z', gmmktime(2, 59, 43, 10, 30, 1730)],
+            ['1730-10-30T02:59:43Z', \PHP_INT_SIZE === 4 ? '-7547547617' : gmmktime(2, 59, 43, 10, 30, 1730)],
 
             ['"a \\"string\\" with \'quoted strings inside\'"', 'a "string" with \'quoted strings inside\''],
             ["'a \"string\" with ''quoted strings inside'''", 'a "string" with \'quoted strings inside\''],
@@ -496,13 +505,25 @@ class InlineTest extends TestCase
             ['[foo, \'@foo.baz\', { \'%foo%\': \'foo is %foo%\', bar: \'%foo%\' }, true, \'@service_container\']', ['foo', '@foo.baz', ['%foo%' => 'foo is %foo%', 'bar' => '%foo%'], true, '@service_container']],
 
             ['{ foo: { bar: { 1: 2, baz: 3 } } }', ['foo' => ['bar' => [1 => 2, 'baz' => 3]]]],
+
+            // numeric strings with trailing whitespaces
+            ["'0123 '", '0123 '],
+            ['"0123\f"', "0123\f"],
+            ['"0123\n"', "0123\n"],
+            ['"0123\r"', "0123\r"],
+            ['"0123\t"', "0123\t"],
+            ['"0123\v"', "0123\v"],
+
+            // whitespaces
+            'ideographic space' => ["'　'", '　'],
+            'ideographic space surrounded by characters' => ["'a　b'", 'a　b'],
         ];
     }
 
     /**
      * @dataProvider getTimestampTests
      */
-    public function testParseTimestampAsUnixTimestampByDefault($yaml, $year, $month, $day, $hour, $minute, $second)
+    public function testParseTimestampAsUnixTimestampByDefault(string $yaml, int $year, int $month, int $day, int $hour, int $minute, int $second)
     {
         $this->assertSame(gmmktime($hour, $minute, $second, $month, $day, $year), Inline::parse($yaml));
     }
@@ -510,37 +531,37 @@ class InlineTest extends TestCase
     /**
      * @dataProvider getTimestampTests
      */
-    public function testParseTimestampAsDateTimeObject($yaml, $year, $month, $day, $hour, $minute, $second, $timezone)
+    public function testParseTimestampAsDateTimeObject(string $yaml, int $year, int $month, int $day, int $hour, int $minute, int $second, int $microsecond, string $timezone)
     {
         $expected = new \DateTime($yaml);
         $expected->setTimeZone(new \DateTimeZone('UTC'));
         $expected->setDate($year, $month, $day);
-        $expected->setTime($hour, $minute, $second, 1000000 * ($second - (int) $second));
+        $expected->setTime($hour, $minute, $second, $microsecond);
 
         $date = Inline::parse($yaml, Yaml::PARSE_DATETIME);
         $this->assertEquals($expected, $date);
         $this->assertSame($timezone, $date->format('O'));
     }
 
-    public function getTimestampTests()
+    public function getTimestampTests(): array
     {
         return [
-            'canonical' => ['2001-12-15T02:59:43.1Z', 2001, 12, 15, 2, 59, 43.1, '+0000'],
-            'ISO-8601' => ['2001-12-15t21:59:43.10-05:00', 2001, 12, 16, 2, 59, 43.1, '-0500'],
-            'spaced' => ['2001-12-15 21:59:43.10 -5', 2001, 12, 16, 2, 59, 43.1, '-0500'],
-            'date' => ['2001-12-15', 2001, 12, 15, 0, 0, 0, '+0000'],
+            'canonical' => ['2001-12-15T02:59:43.1Z', 2001, 12, 15, 2, 59, 43, 100000, '+0000'],
+            'ISO-8601' => ['2001-12-15t21:59:43.10-05:00', 2001, 12, 16, 2, 59, 43, 100000, '-0500'],
+            'spaced' => ['2001-12-15 21:59:43.10 -5', 2001, 12, 16, 2, 59, 43, 100000, '-0500'],
+            'date' => ['2001-12-15', 2001, 12, 15, 0, 0, 0, 0, '+0000'],
         ];
     }
 
     /**
      * @dataProvider getTimestampTests
      */
-    public function testParseNestedTimestampListAsDateTimeObject($yaml, $year, $month, $day, $hour, $minute, $second)
+    public function testParseNestedTimestampListAsDateTimeObject(string $yaml, int $year, int $month, int $day, int $hour, int $minute, int $second, int $microsecond)
     {
         $expected = new \DateTime($yaml);
         $expected->setTimeZone(new \DateTimeZone('UTC'));
         $expected->setDate($year, $month, $day);
-        $expected->setTime($hour, $minute, $second, 1000000 * ($second - (int) $second));
+        $expected->setTime($hour, $minute, $second, $microsecond);
 
         $expectedNested = ['nested' => [$expected]];
         $yamlNested = "{nested: [$yaml]}";
@@ -591,8 +612,8 @@ class InlineTest extends TestCase
      */
     public function testParseInvalidBinaryData($data, $expectedMessage)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp($expectedMessage);
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches($expectedMessage);
 
         Inline::parse($data);
     }
@@ -609,8 +630,8 @@ class InlineTest extends TestCase
 
     public function testNotSupportedMissingValue()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessage('Malformed inline YAML string: {this, is not, supported} at line 1.');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage('Malformed inline YAML string: "{this, is not, supported}" at line 1.');
         Inline::parse('{this, is not, supported}');
     }
 
@@ -626,7 +647,7 @@ class InlineTest extends TestCase
 
     public function testMappingKeysCannotBeOmitted()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Missing mapping key');
         Inline::parse('{: foo}');
     }
@@ -657,7 +678,7 @@ class InlineTest extends TestCase
      */
     public function testImplicitStringCastingOfMappingKeysIsDeprecated($yaml, $expected)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Implicit casting of incompatible mapping keys to strings is not supported. Quote your evaluable mapping keys instead');
         $this->assertSame($expected, Inline::parse($yaml));
     }
@@ -710,8 +731,169 @@ class InlineTest extends TestCase
 
     public function testUnfinishedInlineMap()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessage('Unexpected end of line, expected one of ",}" at line 1 (near "{abc: \'def\'").');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage("Unexpected end of line, expected one of \",}\n\" at line 1 (near \"{abc: 'def'\").");
         Inline::parse("{abc: 'def'");
+    }
+
+    /**
+     * @dataProvider getTestsForOctalNumbers
+     */
+    public function testParseOctalNumbers($expected, $yaml)
+    {
+        self::assertSame($expected, Inline::parse($yaml));
+    }
+
+    public function getTestsForOctalNumbers()
+    {
+        return [
+            'positive octal number' => [28, '034'],
+            'negative octal number' => [-28, '-034'],
+        ];
+    }
+
+    /**
+     * @dataProvider phpObjectTagWithEmptyValueProvider
+     */
+    public function testPhpObjectWithEmptyValue($expected, $value)
+    {
+        $this->assertSame($expected, Inline::parse($value, Yaml::PARSE_OBJECT));
+    }
+
+    public function phpObjectTagWithEmptyValueProvider()
+    {
+        return [
+            [false, '!php/object'],
+            [false, '!php/object '],
+            [false, '!php/object  '],
+            [[false], '[!php/object]'],
+            [[false], '[!php/object ]'],
+            [[false, 'foo'], '[!php/object  , foo]'],
+        ];
+    }
+
+    /**
+     * @dataProvider phpConstTagWithEmptyValueProvider
+     */
+    public function testPhpConstTagWithEmptyValue($expected, $value)
+    {
+        $this->assertSame($expected, Inline::parse($value, Yaml::PARSE_CONSTANT));
+    }
+
+    public function phpConstTagWithEmptyValueProvider()
+    {
+        return [
+            ['', '!php/const'],
+            ['', '!php/const '],
+            ['', '!php/const  '],
+            [[''], '[!php/const]'],
+            [[''], '[!php/const ]'],
+            [['', 'foo'], '[!php/const  , foo]'],
+            [['' => 'foo'], '{!php/const: foo}'],
+            [['' => 'foo'], '{!php/const : foo}'],
+            [['' => 'foo', 'bar' => 'ccc'], '{!php/const  : foo, bar: ccc}'],
+        ];
+    }
+
+    public function testParsePositiveOctalNumberContainingInvalidDigits()
+    {
+        self::assertSame('0123456789', Inline::parse('0123456789'));
+    }
+
+    public function testParseNegativeOctalNumberContainingInvalidDigits()
+    {
+        self::assertSame('-0123456789', Inline::parse('-0123456789'));
+    }
+
+    public function testParseCommentNotPrefixedBySpaces()
+    {
+        self::assertSame('foo', Inline::parse('"foo"#comment'));
+    }
+
+    public function testParseUnquotedStringContainingHashTagNotPrefixedBySpace()
+    {
+        self::assertSame('foo#nocomment', Inline::parse('foo#nocomment'));
+    }
+
+    /**
+     * @dataProvider unquotedExclamationMarkThrowsProvider
+     */
+    public function testUnquotedExclamationMarkThrows(string $value)
+    {
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches('/^Using the unquoted scalar value "!" is not supported\. You must quote it at line 1 \(near "/');
+
+        Inline::parse($value);
+    }
+
+    public function unquotedExclamationMarkThrowsProvider()
+    {
+        return [
+            ['!'],
+            ['! '],
+            ['!  '],
+            [' ! '],
+            ['[!]'],
+            ['[! ]'],
+            ['[!  ]'],
+            ['[!, "foo"]'],
+            ['["foo", !, "ccc"]'],
+            ['{foo: !}'],
+            ['{foo:     !}'],
+            ['{foo: !, bar: "ccc"}'],
+            ['{bar: "ccc", foo: ! }'],
+            ['!]]]'],
+            ['!}'],
+            ['!,}foo,]'],
+            ['! [!]'],
+        ];
+    }
+
+    /**
+     * @dataProvider quotedExclamationMarkProvider
+     */
+    public function testQuotedExclamationMark($expected, string $value)
+    {
+        $this->assertSame($expected, Inline::parse($value));
+    }
+
+    // This provider should stay consistent with unquotedExclamationMarkThrowsProvider
+    public function quotedExclamationMarkProvider()
+    {
+        return [
+            ['!', '"!"'],
+            ['! ', '"! "'],
+            [' !', '" !"'],
+            [' ! ', '" ! "'],
+            [['!'], '["!"]'],
+            [['!  '], '["!  "]'],
+            [['!', 'foo'], '["!", "foo"]'],
+            [['foo', '!', 'ccc'], '["foo", "!", "ccc"]'],
+            [['foo' => '!'], '{foo: "!"}'],
+            [['foo' => '    !'], '{foo: "    !"}'],
+            [['foo' => '!', 'bar' => 'ccc'], '{foo: "!", bar: "ccc"}'],
+            [['bar' => 'ccc', 'foo' => '! '], '{bar: "ccc", foo: "! "}'],
+            ['!]]]', '"!]]]"'],
+            ['!}', '"!}"'],
+            ['!,}foo,]', '"!,}foo,]"'],
+            [['!'], '! ["!"]'],
+        ];
+    }
+
+    /**
+     * @dataProvider ideographicSpaceProvider
+     */
+    public function testParseIdeographicSpace(string $yaml, string $expected)
+    {
+        $this->assertSame($expected, Inline::parse($yaml));
+    }
+
+    public function ideographicSpaceProvider(): array
+    {
+        return [
+            ["\u{3000}", '　'],
+            ["'\u{3000}'", '　'],
+            ["'a　b'", 'a　b'],
+        ];
     }
 }

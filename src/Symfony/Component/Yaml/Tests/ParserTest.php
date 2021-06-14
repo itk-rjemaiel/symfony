@@ -12,6 +12,7 @@
 namespace Symfony\Component\Yaml\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Tag\TaggedValue;
 use Symfony\Component\Yaml\Yaml;
@@ -51,26 +52,67 @@ class ParserTest extends TestCase
         return $this->loadTestsFromFixtureFiles('nonStringKeys.yml');
     }
 
-    public function testTabsInYaml()
+    /**
+     * @dataProvider invalidIndentation
+     */
+    public function testTabsAsIndentationInYaml(string $given, string $expectedMessage)
     {
-        // test tabs in YAML
-        $yamls = [
-            "foo:\n	bar",
-            "foo:\n 	bar",
-            "foo:\n	 bar",
-            "foo:\n 	 bar",
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage($expectedMessage);
+        $this->parser->parse($given);
+    }
+
+    public function invalidIndentation(): array
+    {
+        return [
+            [
+                "foo:\n\tbar",
+                "A YAML file cannot contain tabs as indentation at line 2 (near \"\tbar\").",
+            ],
+            [
+                "foo:\n \tbar",
+                "A YAML file cannot contain tabs as indentation at line 2 (near \"\tbar\").",
+            ],
+            [
+                "foo:\n\t bar",
+                "A YAML file cannot contain tabs as indentation at line 2 (near \"\t bar\").",
+            ],
+            [
+                "foo:\n \t bar",
+                "A YAML file cannot contain tabs as indentation at line 2 (near \"\t bar\").",
+            ],
         ];
+    }
 
-        foreach ($yamls as $yaml) {
-            try {
-                $content = $this->parser->parse($yaml);
+    /**
+     * @dataProvider validTokenSeparators
+     */
+    public function testValidTokenSeparation(string $given, array $expected)
+    {
+        $actual = $this->parser->parse($given);
+        $this->assertEquals($expected, $actual);
+    }
 
-                $this->fail('YAML files must not contain tabs');
-            } catch (\Exception $e) {
-                $this->assertInstanceOf('\Exception', $e, 'YAML files must not contain tabs');
-                $this->assertEquals('A YAML file cannot contain tabs as indentation at line 2 (near "'.strpbrk($yaml, "\t").'").', $e->getMessage(), 'YAML files must not contain tabs');
-            }
-        }
+    public function validTokenSeparators(): array
+    {
+        return [
+            [
+                'foo: bar',
+                ['foo' => 'bar'],
+            ],
+            [
+                "foo:\tbar",
+                ['foo' => 'bar'],
+            ],
+            [
+                "foo: \tbar",
+                ['foo' => 'bar'],
+            ],
+            [
+                "foo:\t bar",
+                ['foo' => 'bar'],
+            ],
+        ];
     }
 
     public function testEndOfTheDocumentMarker()
@@ -513,7 +555,7 @@ YAML;
 
     public function testObjectsSupportDisabledWithExceptions()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $yaml = <<<'EOF'
 foo: !php/object:O:30:"Symfony\Tests\Component\Yaml\B":1:{s:1:"b";s:3:"foo";}
 bar: 1
@@ -564,14 +606,14 @@ EOF;
 
                 $this->fail('charsets other than UTF-8 are rejected.');
             } catch (\Exception $e) {
-                $this->assertInstanceOf('Symfony\Component\Yaml\Exception\ParseException', $e, 'charsets other than UTF-8 are rejected.');
+                $this->assertInstanceOf(ParseException::class, $e, 'charsets other than UTF-8 are rejected.');
             }
         }
     }
 
     public function testUnindentedCollectionException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $yaml = <<<'EOF'
 
 collection:
@@ -586,7 +628,7 @@ EOF;
 
     public function testShortcutKeyUnindentedCollectionException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $yaml = <<<'EOF'
 
 collection:
@@ -600,8 +642,8 @@ EOF;
 
     public function testMultipleDocumentsNotSupportedException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp('/^Multiple documents are not supported.+/');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches('/^Multiple documents are not supported.+/');
         Yaml::parse(<<<'EOL'
 # Ranking of 1998 home runs
 ---
@@ -619,7 +661,7 @@ EOL
 
     public function testSequenceInAMapping()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         Yaml::parse(<<<'EOF'
 yaml:
   hash: me
@@ -727,7 +769,7 @@ EOT;
      */
     public function testParseExceptionNotAffectedByMultiLineStringLastResortParsing($yaml)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->parser->parse($yaml);
     }
 
@@ -759,7 +801,7 @@ EOT;
 
     public function testMappingInASequence()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         Yaml::parse(<<<'EOF'
 yaml:
   - array stuff
@@ -770,7 +812,7 @@ EOF
 
     public function testScalarInSequence()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('missing colon');
         Yaml::parse(<<<'EOF'
 foo:
@@ -793,7 +835,7 @@ EOF
      */
     public function testMappingDuplicateKeyBlock()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Duplicate key "child" detected');
         $input = <<<'EOD'
 parent:
@@ -813,7 +855,7 @@ EOD;
 
     public function testMappingDuplicateKeyFlow()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Duplicate key "child" detected');
         $input = <<<'EOD'
 parent: { child: first, child: duplicate }
@@ -832,7 +874,7 @@ EOD;
      */
     public function testParseExceptionOnDuplicate($input, $duplicateKey, $lineNumber)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage(sprintf('Duplicate key "%s" detected at line %d', $duplicateKey, $lineNumber));
 
         Yaml::parse($input);
@@ -1031,6 +1073,10 @@ EOF
             'map' => ['key' => 'var-value'],
             'list_in_map' => ['key' => ['var-value']],
             'map_in_map' => ['foo' => ['bar' => 'var-value']],
+            'foo' => ['bar' => 'baz'],
+            'bar' => ['foo' => 'baz'],
+            'baz' => ['foo'],
+            'foobar' => ['foo'],
         ], Yaml::parse(<<<'EOF'
 var:  &var var-value
 scalar: *var
@@ -1041,6 +1087,10 @@ embedded_mapping: [ key: *var ]
 map: { key: *var }
 list_in_map: { key: [*var] }
 map_in_map: { foo: { bar: *var } }
+foo: { bar: &baz baz }
+bar: { foo: *baz }
+baz: [ &foo foo ]
+foobar: [ *foo ]
 EOF
         ));
     }
@@ -1058,7 +1108,7 @@ EOF;
 
     public function testFloatKeys()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Numeric keys are not supported. Quote your evaluable mapping keys instead');
         $yaml = <<<'EOF'
 foo:
@@ -1071,7 +1121,7 @@ EOF;
 
     public function testBooleanKeys()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Non-string keys are not supported. Quote your evaluable mapping keys instead');
         $yaml = <<<'EOF'
 true: foo
@@ -1108,7 +1158,7 @@ EOF;
 
     public function testColonInMappingValueException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('A colon cannot be used in an unquoted mapping value');
         $yaml = <<<'EOF'
 foo: bar: baz
@@ -1346,8 +1396,8 @@ EOT
      */
     public function testParseInvalidBinaryData($data, $expectedMessage)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp($expectedMessage);
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches($expectedMessage);
 
         $this->parser->parse($data);
     }
@@ -1414,7 +1464,7 @@ EOT;
      */
     public function testParserThrowsExceptionWithCorrectLineNumber($lineNumber, $yaml)
     {
-        $this->expectException('\Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage(sprintf('Unexpected characters near "," at line %d (near "bar: "123",").', $lineNumber));
 
         $this->parser->parse($yaml);
@@ -1529,6 +1579,33 @@ YAML;
         $this->assertSame($expected, $this->parser->parse($yaml));
     }
 
+    public function testEscapedQuoteInQuotedMultiLineString()
+    {
+        $yaml = <<<YAML
+foobar: "foo
+    \\"bar\\"
+    baz"
+YAML;
+        $expected = [
+            'foobar' => 'foo "bar" baz',
+        ];
+
+        $this->assertSame($expected, $this->parser->parse($yaml));
+    }
+
+    public function testBackslashInQuotedMultiLineString()
+    {
+        $yaml = <<<YAML
+foobar: "foo
+    bar\\\\"
+YAML;
+        $expected = [
+            'foobar' => 'foo bar\\',
+        ];
+
+        $this->assertSame($expected, $this->parser->parse($yaml));
+    }
+
     public function testParseMultiLineUnquotedString()
     {
         $yaml = <<<EOT
@@ -1540,6 +1617,59 @@ bar: baz
 EOT;
 
         $this->assertSame(['foo' => 'bar baz foobar foo', 'bar' => 'baz'], $this->parser->parse($yaml));
+    }
+
+    /**
+     * @dataProvider escapedQuotationCharactersInQuotedStrings
+     */
+    public function testParseQuotedStringContainingEscapedQuotationCharacters(string $yaml, array $expected)
+    {
+        $this->assertSame($expected, $this->parser->parse($yaml));
+    }
+
+    public function escapedQuotationCharactersInQuotedStrings()
+    {
+        return [
+            'single quoted string' => [
+                <<<YAML
+entries:
+ - message: 'No emails received before timeout - Address: ''test@testemail.company.com''
+       Keyword: ''Your Order confirmation'' ttl: 50'
+   outcome: failed
+YAML
+                ,
+                [
+                    'entries' => [
+                        [
+                            'message' => 'No emails received before timeout - Address: \'test@testemail.company.com\' Keyword: \'Your Order confirmation\' ttl: 50',
+                            'outcome' => 'failed',
+                        ],
+                    ],
+                ],
+            ],
+            'double quoted string' => [
+                <<<YAML
+entries:
+ - message: "No emails received before timeout - Address: \"test@testemail.company.com\"
+       Keyword: \"Your Order confirmation\" ttl: 50"
+   outcome: failed
+YAML
+                ,
+                [
+                    'entries' => [
+                        [
+                            'message' => 'No emails received before timeout - Address: "test@testemail.company.com" Keyword: "Your Order confirmation" ttl: 50',
+                            'outcome' => 'failed',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    public function testBackslashInSingleQuotedString()
+    {
+        $this->assertSame(['foo' => 'bar\\'], $this->parser->parse("foo: 'bar\'"));
     }
 
     public function testParseMultiLineString()
@@ -1614,9 +1744,393 @@ EOF;
         return $tests;
     }
 
+    /**
+     * @dataProvider inlineNotationSpanningMultipleLinesProvider
+     */
+    public function testInlineNotationSpanningMultipleLines($expected, string $yaml)
+    {
+        $this->assertEquals($expected, $this->parser->parse($yaml));
+    }
+
+    public function inlineNotationSpanningMultipleLinesProvider(): array
+    {
+        return [
+            'mapping' => [
+                ['foo' => 'bar', 'bar' => 'baz'],
+                <<<YAML
+{
+    'foo': 'bar',
+    'bar': 'baz'
+}
+YAML
+                ,
+            ],
+            'mapping with unquoted strings and values' => [
+                ['foo' => 'bar', 'bar' => 'baz'],
+                <<<YAML
+{
+    foo: bar,
+    bar: baz
+}
+YAML
+                ,
+            ],
+            'sequence' => [
+                ['foo', 'bar'],
+                <<<YAML
+[
+    'foo',
+    'bar'
+]
+YAML
+                ,
+            ],
+            'sequence with unquoted items' => [
+                ['foo', 'bar'],
+                <<<YAML
+[
+    foo,
+    bar
+]
+YAML
+                ,
+            ],
+            'nested mapping terminating at end of line' => [
+                [
+                    'foo' => [
+                        'bar' => 'foobar',
+                    ],
+                ],
+                <<<YAML
+{ foo: { bar: foobar }
+}
+YAML
+                ,
+            ],
+            'nested sequence terminating at end of line' => [
+                [
+                    'foo',
+                    [
+                        'bar',
+                        'baz',
+                    ],
+                ],
+                <<<YAML
+[ foo, [bar, baz]
+]
+YAML
+            ],
+            'nested sequence spanning multiple lines' => [
+                [
+                    ['entry1', []],
+                    ['entry2'],
+                ],
+                <<<YAML
+[
+    ['entry1', {}],
+    ['entry2']
+]
+YAML
+            ],
+            'sequence nested in mapping' => [
+                ['foo' => ['bar', 'foobar'], 'bar' => ['baz']],
+                <<<YAML
+{
+    'foo': ['bar', 'foobar'],
+    'bar': ['baz']
+}
+YAML
+                ,
+            ],
+            'sequence spanning multiple lines nested in mapping' => [
+                [
+                    'foobar' => [
+                        'foo',
+                        'bar',
+                        'baz',
+                    ],
+                ],
+                <<<YAML
+foobar: [foo,
+    bar,
+    baz
+]
+YAML
+                ,
+            ],
+            'sequence spanning multiple lines nested in mapping with a following mapping' => [
+                [
+                    'foobar' => [
+                        'foo',
+                        'bar',
+                    ],
+                    'bar' => 'baz',
+                ],
+                <<<YAML
+foobar: [
+    foo,
+    bar,
+]
+bar: baz
+YAML
+            ],
+            'nested sequence nested in mapping starting on the same line' => [
+                [
+                    'foo' => [
+                        'foobar',
+                        [
+                            'bar',
+                            'baz',
+                        ],
+                    ],
+                ],
+                <<<YAML
+foo: [foobar, [
+    bar,
+    baz
+]]
+YAML
+                ,
+            ],
+            'nested sequence nested in mapping starting on the following line' => [
+                [
+                    'foo' => [
+                        'foobar',
+                        [
+                            'bar',
+                            'baz',
+                        ],
+                    ],
+                ],
+                <<<YAML
+foo: [foobar,
+    [
+        bar,
+        baz
+]]
+YAML
+                ,
+            ],
+            'mapping nested in sequence' => [
+                ['foo', ['bar' => 'baz']],
+                <<<YAML
+[
+    'foo',
+    {
+        'bar': 'baz'
+    }
+]
+YAML
+                ,
+            ],
+            'mapping spanning multiple lines nested in sequence' => [
+                [
+                    [
+                        'foo' => 'bar',
+                        'bar' => 'baz',
+                    ],
+                ],
+                <<<YAML
+- {
+    foo: bar,
+    bar: baz
+}
+YAML
+                ,
+            ],
+            'nested mapping nested in sequence starting on the same line' => [
+                [
+                    [
+                        'foo' => [
+                            'bar' => 'foobar',
+                        ],
+                        'bar' => 'baz',
+                    ],
+                ],
+                <<<YAML
+- { foo: {
+        bar: foobar
+    },
+    bar: baz
+}
+YAML
+                ,
+            ],
+            'nested mapping nested in sequence starting on the following line' => [
+                [
+                    [
+                        'foo' => [
+                            'bar' => 'foobar',
+                        ],
+                        'bar' => 'baz',
+                    ],
+                ],
+                <<<YAML
+- { foo:
+    {
+        bar: foobar
+    },
+    bar: baz
+}
+YAML
+                ,
+            ],
+            'single quoted multi-line string' => [
+                "foo\nbar",
+                <<<YAML
+'foo
+
+bar'
+YAML
+                ,
+            ],
+            'double quoted multi-line string' => [
+                "foo\nbar",
+                <<<YAML
+'foo
+
+bar'
+YAML
+                ,
+            ],
+            'single-quoted multi-line mapping value' => [
+                ['foo' => "bar\nbaz"],
+                <<<YAML
+foo: 'bar
+
+baz'
+YAML
+            ],
+            'mixed mapping with inline notation having separated lines' => [
+                [
+                    'map' => [
+                        'key' => 'value',
+                        'a' => 'b',
+                    ],
+                    'param' => 'some',
+                ],
+                <<<YAML
+map: {
+    key: "value",
+    a: "b"
+}
+param: "some"
+YAML
+            ],
+            'mixed mapping with inline notation on one line' => [
+                [
+                    'map' => [
+                        'key' => 'value',
+                        'a' => 'b',
+                    ],
+                    'param' => 'some',
+                ],
+                <<<YAML
+map: {key: "value", a: "b"}
+param: "some"
+YAML
+            ],
+            'mixed mapping with compact inline notation on one line' => [
+                [
+                    'map' => [
+                        'key' => 'value',
+                        'a' => 'b',
+                    ],
+                    'param' => 'some',
+                ],
+                <<<YAML
+map: {key: "value",
+a: "b"}
+param: "some"
+YAML
+            ],
+            'nested collections containing strings with bracket chars' => [
+                [
+                    [']'],
+                    ['}'],
+                    ['ba[r'],
+                    ['[ba]r'],
+                    ['bar]'],
+                    ['foo' => 'bar{'],
+                    ['foo' => 'b{ar}'],
+                    ['foo' => 'bar}'],
+                ],
+                <<<YAML
+[
+    [
+        "]"
+    ],
+    [
+        "}"
+    ],
+    [
+        "ba[r"
+    ],
+    [
+        '[ba]r'
+    ],
+    [
+        "bar]"
+    ],
+    {
+        foo: "bar{"
+    },
+    {
+        foo: "b{ar}"
+    },
+    {
+        foo: 'bar}'
+    }
+]
+YAML
+            ],
+            'escaped characters in quoted strings' => [
+                [
+                    ['te"st'],
+                    ['test'],
+                    ["te'st"],
+                    ['te"st]'],
+                    ['te"st'],
+                    ['test'],
+                    ["te'st"],
+                    ['te"st]'],
+                ],
+                <<<YAML
+[
+    ["te\"st"],["test"],['te''st'],["te\"st]"],
+    ["te\"st"],
+    ["test"],
+    ['te''st'],
+    ["te\"st]"]
+]
+YAML
+            ],
+        ];
+    }
+
+    public function testRootLevelInlineMappingFollowedByMoreContentIsInvalid()
+    {
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage('Unable to parse at line 2 (near "foobar").');
+
+        $yaml = <<<YAML
+{ foo: bar }
+foobar
+YAML;
+
+        $this->parser->parse($yaml);
+    }
+
     public function testTaggedInlineMapping()
     {
         $this->assertEquals(new TaggedValue('foo', ['foo' => 'bar']), $this->parser->parse('!foo {foo: bar}', Yaml::PARSE_CUSTOM_TAGS));
+    }
+
+    public function testInvalidInlineSequenceContainingStringWithEscapedQuotationCharacter()
+    {
+        $this->expectException(ParseException::class);
+
+        $this->parser->parse('["\\"]');
     }
 
     /**
@@ -1670,6 +2184,30 @@ YAML
                 [new TaggedValue('foo', 'bar')],
                 '[ !foo bar ]',
             ],
+            'with-comments' => [
+                [
+                    [new TaggedValue('foo', ['foo', 'baz'])],
+                ],
+                <<<YAML
+- [!foo [
+    foo,
+    baz
+    #bar
+  ]]
+YAML
+            ],
+            'with-comments-trailing-comma' => [
+                [
+                    [new TaggedValue('foo', ['foo', 'baz'])],
+                ],
+                <<<YAML
+- [!foo [
+    foo,
+    baz,
+    #bar
+  ]]
+YAML
+            ],
         ];
     }
 
@@ -1680,35 +2218,35 @@ YAML
 
     public function testCustomTagsDisabled()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Tags support is not enabled. Enable the "Yaml::PARSE_CUSTOM_TAGS" flag to use "!iterator" at line 1 (near "!iterator [foo]").');
         $this->parser->parse('!iterator [foo]');
     }
 
     public function testUnsupportedTagWithScalar()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Tags support is not enabled. Enable the "Yaml::PARSE_CUSTOM_TAGS" flag to use "!iterator" at line 1 (near "!iterator foo").');
         $this->parser->parse('!iterator foo');
     }
 
     public function testUnsupportedBuiltInTagWithScalar()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('The string "!!iterator foo" could not be parsed as it uses an unsupported built-in tag at line 1 (near "!!iterator foo").');
         $this->parser->parse('!!iterator foo');
     }
 
-    public function testExceptionWhenUsingUnsuportedBuiltInTags()
+    public function testExceptionWhenUsingUnsupportedBuiltInTags()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('The built-in tag "!!foo" is not implemented at line 1 (near "!!foo").');
         $this->parser->parse('!!foo');
     }
 
     public function testComplexMappingThrowsParseException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Complex mappings are not supported at line 1 (near "? "1"").');
         $yaml = <<<YAML
 ? "1"
@@ -1721,7 +2259,7 @@ YAML;
 
     public function testComplexMappingNestedInMappingThrowsParseException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Complex mappings are not supported at line 2 (near "? "1"").');
         $yaml = <<<YAML
 diet:
@@ -1735,7 +2273,7 @@ YAML;
 
     public function testComplexMappingNestedInSequenceThrowsParseException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Complex mappings are not supported at line 1 (near "- ? "1"").');
         $yaml = <<<YAML
 - ? "1"
@@ -1748,8 +2286,8 @@ YAML;
 
     public function testParsingIniThrowsException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessage('Unable to parse at line 1 (near "[parameters]").');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage('Unable to parse at line 2 (near "  foo = bar").');
         $ini = <<<INI
 [parameters]
   foo = bar
@@ -1801,7 +2339,7 @@ INI;
 
     public function testParserCleansUpReferencesBetweenRuns()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Reference "foo" does not exist at line 2');
         $yaml = <<<YAML
 foo: &foo
@@ -1839,6 +2377,42 @@ YAML;
         ];
 
         $this->assertSame($expected, $this->parser->parse($yaml, Yaml::PARSE_CONSTANT));
+    }
+
+    public function testDeprecatedPhpConstantSyntax()
+    {
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage('Missing value for tag "php/const:App\Kernel::SEMART_VERSION" at line 1 (near "!php/const:App\Kernel::SEMART_VERSION").');
+
+        $this->parser->parse('!php/const:App\Kernel::SEMART_VERSION', Yaml::PARSE_CUSTOM_TAGS | Yaml::PARSE_CONSTANT);
+    }
+
+    public function testPhpConstantTagMappingAsScalarKey()
+    {
+        $yaml = <<<YAML
+map1:
+  - foo: 'value_0'
+    !php/const 'Symfony\Component\Yaml\Tests\B::BAR': 'value_1'
+map2:
+  - !php/const 'Symfony\Component\Yaml\Tests\B::FOO': 'value_0'
+    bar: 'value_1'
+YAML;
+        $this->assertSame([
+            'map1' => [['foo' => 'value_0', 'bar' => 'value_1']],
+            'map2' => [['foo' => 'value_0', 'bar' => 'value_1']],
+        ], $this->parser->parse($yaml, Yaml::PARSE_CONSTANT));
+    }
+
+    public function testTagMappingAsScalarKey()
+    {
+        $yaml = <<<YAML
+map1:
+  - !!str 0: 'value_0'
+    !!str 1: 'value_1'
+YAML;
+        $this->assertSame([
+            'map1' => [['0' => 'value_0', '1' => 'value_1']],
+        ], $this->parser->parse($yaml));
     }
 
     public function testMergeKeysWhenMappingsAreParsedAsObjects()
@@ -1892,15 +2466,15 @@ YAML;
 
     public function testParsingNonExistentFilesThrowsException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp('#^File ".+/Fixtures/nonexistent.yml" does not exist\.$#');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches('#^File ".+/Fixtures/nonexistent.yml" does not exist\.$#');
         $this->parser->parseFile(__DIR__.'/Fixtures/nonexistent.yml');
     }
 
     public function testParsingNotReadableFilesThrowsException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
-        $this->expectExceptionMessageRegExp('#^File ".+/Fixtures/not_readable.yml" cannot be read\.$#');
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessageMatches('#^File ".+/Fixtures/not_readable.yml" cannot be read\.$#');
         if ('\\' === \DIRECTORY_SEPARATOR) {
             $this->markTestSkipped('chmod is not supported on Windows');
         }
@@ -1973,7 +2547,7 @@ YAML;
 
     public function testEvalRefException()
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Reference "foo" does not exist');
         $yaml = <<<EOE
 foo: { &foo { a: Steve, <<: *foo} }
@@ -1986,7 +2560,7 @@ EOE;
      */
     public function testDetectCircularReferences($yaml)
     {
-        $this->expectException('Symfony\Component\Yaml\Exception\ParseException');
+        $this->expectException(ParseException::class);
         $this->expectExceptionMessage('Circular reference [foo, bar, foo] detected');
         $this->parser->parse($yaml, Yaml::PARSE_CUSTOM_TAGS);
     }
@@ -2103,7 +2677,7 @@ YAML;
 parameters:
     abc
 
-# Comment 
+# Comment
 YAML;
 
         $this->assertSame(['parameters' => 'abc'], $this->parser->parse($yaml));
@@ -2150,13 +2724,106 @@ YAML;
             $this->parser->parse($yaml)
         );
     }
+
+    public function testThrowExceptionIfInvalidAdditionalClosingTagOccurs()
+    {
+        $yaml = '{
+            "object": {
+                    "array": [
+                        "a",
+                        "b",
+                        "c"
+                    ]
+                ],
+            }
+        }';
+
+        $this->expectException(ParseException::class);
+        $this->expectExceptionMessage('Malformed unquoted YAML string at line 8 (near "                ],").');
+
+        $this->parser->parse($yaml);
+    }
+
+    public function testWhitespaceAtEndOfLine()
+    {
+        $yaml = "\nfoo:\n    arguments: [ '@bar' ]  \n";
+        $this->assertSame(
+            [
+                'foo' => [
+                    'arguments' => ['@bar'],
+                ],
+            ],
+            $this->parser->parse($yaml)
+        );
+
+        $yaml = "\nfoo:\n    bar: {} \n";
+        $this->assertSame(
+            [
+                'foo' => [
+                    'bar' => [],
+                ],
+            ],
+            $this->parser->parse($yaml)
+        );
+
+        $this->assertSame(
+            [
+                'foo' => 'bar',
+                'foobar' => 'baz',
+            ],
+            $this->parser->parse("foo: 'bar' \nfoobar: baz")
+        );
+    }
+
+    /**
+     * This is a regression test for a bug where a YAML block with a nested multiline string using | was parsed without
+     * a trailing \n when a shorter YAML document was parsed before.
+     *
+     * When a shorter document was parsed before, the nested string did not have a \n at the end of the string, because
+     * the Parser thought it was the end of the file, even though it is not.
+     */
+    public function testParsingMultipleDocuments()
+    {
+        $shortDocument = 'foo: bar';
+        $longDocument = <<<YAML
+a:
+    b: |
+        row
+        row2
+c: d
+YAML;
+
+        // The first parsing set and fixed the totalNumberOfLines in the Parser before, so parsing the short document here
+        // to reproduce the issue. If the issue would not have been fixed, the next assertion will fail
+        $this->parser->parse($shortDocument);
+
+        // After the total number of lines has been reset the result will be the same as if a new parser was used
+        // (before, there was no \n after row2)
+        $this->assertSame(['a' => ['b' => "row\nrow2\n"], 'c' => 'd'], $this->parser->parse($longDocument));
+    }
+
+    public function testParseIdeographicSpaces()
+    {
+        $expected = <<<YAML
+unquoted: \u{3000}
+quoted: '\u{3000}'
+within_string: 'a　b'
+regular_space: 'a b'
+YAML;
+        $this->assertSame([
+            'unquoted' => '　',
+            'quoted' => '　',
+            'within_string' => 'a　b',
+            'regular_space' => 'a b',
+        ], $this->parser->parse($expected));
+    }
 }
 
 class B
 {
     public $b = 'foo';
 
-    const FOO = 'foo';
-    const BAR = 'bar';
-    const BAZ = 'baz';
+    public const FOO = 'foo';
+    public const BAR = 'bar';
+    public const BAZ = 'baz';
 }

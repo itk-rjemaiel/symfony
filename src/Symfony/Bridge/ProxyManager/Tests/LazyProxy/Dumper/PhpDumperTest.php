@@ -12,6 +12,7 @@
 namespace Symfony\Bridge\ProxyManager\Tests\LazyProxy\Dumper;
 
 use PHPUnit\Framework\TestCase;
+use ProxyManager\Proxy\LazyLoadingInterface;
 use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
@@ -38,15 +39,15 @@ class PhpDumperTest extends TestCase
      */
     public function testDumpContainerWithProxyServiceWillShareProxies()
     {
-        if (!class_exists('LazyServiceProjectServiceContainer', false)) {
+        if (!class_exists(\LazyServiceProjectServiceContainer::class, false)) {
             eval('?>'.$this->dumpLazyServiceProjectServiceContainer());
         }
 
         $container = new \LazyServiceProjectServiceContainer();
 
         $proxy = $container->get('foo');
-        $this->assertInstanceOf('stdClass', $proxy);
-        $this->assertInstanceOf('ProxyManager\Proxy\LazyLoadingInterface', $proxy);
+        $this->assertInstanceOf(\stdClass::class, $proxy);
+        $this->assertInstanceOf(LazyLoadingInterface::class, $proxy);
         $this->assertSame($proxy, $container->get('foo'));
 
         $this->assertFalse($proxy->isProxyInitialized());

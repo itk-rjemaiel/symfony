@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\TestSuite;
 use PHPUnit\Runner\BaseTestRunner;
 use PHPUnit\Util\Blacklist;
+use PHPUnit\Util\ExcludeList;
 use PHPUnit\Util\Test;
 use Symfony\Bridge\PhpUnit\ClockMock;
 use Symfony\Bridge\PhpUnit\DnsMock;
@@ -35,28 +36,34 @@ class SymfonyTestsListenerTrait
     private static $globallyEnabled = false;
     private $state = -1;
     private $skippedFile = false;
-    private $wasSkipped = array();
-    private $isSkipped = array();
-    private $expectedDeprecations = array();
-    private $gatheredDeprecations = array();
+    private $wasSkipped = [];
+    private $isSkipped = [];
+    private $expectedDeprecations = [];
+    private $gatheredDeprecations = [];
     private $previousErrorHandler;
-    private $testsWithWarnings;
-    private $reportUselessTests;
     private $error;
     private $runsInSeparateProcess = false;
 
     /**
      * @param array $mockedNamespaces List of namespaces, indexed by mocked features (time-sensitive or dns-sensitive)
      */
-    public function __construct(array $mockedNamespaces = array())
+    public function __construct(array $mockedNamespaces = [])
     {
-        Blacklist::$blacklistedClassNames['\Symfony\Bridge\PhpUnit\Legacy\SymfonyTestsListenerTrait'] = 2;
+        if (class_exists(ExcludeList::class)) {
+            (new ExcludeList())->getExcludedDirectories();
+            ExcludeList::addDirectory(\dirname((new \ReflectionClass(__CLASS__))->getFileName(), 2));
+        } elseif (method_exists(Blacklist::class, 'addDirectory')) {
+            (new BlackList())->getBlacklistedDirectories();
+            Blacklist::addDirectory(\dirname((new \ReflectionClass(__CLASS__))->getFileName(), 2));
+        } else {
+            Blacklist::$blacklistedClassNames[__CLASS__] = 2;
+        }
 
         $enableDebugClassLoader = class_exists(DebugClassLoader::class) || class_exists(LegacyDebugClassLoader::class);
 
         foreach ($mockedNamespaces as $type => $namespaces) {
             if (!\is_array($namespaces)) {
-                $namespaces = array($namespaces);
+                $namespaces = [$namespaces];
             }
             if ('time-sensitive' === $type) {
                 foreach ($namespaces as $ns) {
@@ -112,10 +119,9 @@ class SymfonyTestsListenerTrait
     public function startTestSuite($suite)
     {
         $suiteName = $suite->getName();
-        $this->testsWithWarnings = array();
 
         foreach ($suite->tests() as $test) {
-            if (!($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase)) {
+            if (!($test instanceof \PHPUnit_Framework_TestCase || $test instanceof TestCase)) {
                 continue;
             }
             if (null === Test::getPreserveGlobalStateSettings(\get_class($test), $test->getName(false))) {
@@ -127,8 +133,8 @@ class SymfonyTestsListenerTrait
             echo "Testing $suiteName\n";
             $this->state = 0;
 
-            if (!class_exists('Doctrine\Common\Annotations\AnnotationRegistry', false) && class_exists('Doctrine\Common\Annotations\AnnotationRegistry')) {
-                if (method_exists('Doctrine\Common\Annotations\AnnotationRegistry', 'registerUniqueLoader')) {
+            if (!class_exists(AnnotationRegistry::class, false) && class_exists(AnnotationRegistry::class)) {
+                if (method_exists(AnnotationRegistry::class, 'registerUniqueLoader')) {
                     AnnotationRegistry::registerUniqueLoader('class_exists');
                 } else {
                     AnnotationRegistry::registerLoader('class_exists');
@@ -143,14 +149,14 @@ class SymfonyTestsListenerTrait
 
                     if (!$this->wasSkipped = require $this->skippedFile) {
                         echo "All tests already ran successfully.\n";
-                        $suite->setTests(array());
+                        $suite->setTests([]);
                     }
                 }
             }
-            $testSuites = array($suite);
+            $testSuites = [$suite];
             for ($i = 0; isset($testSuites[$i]); ++$i) {
                 foreach ($testSuites[$i]->tests() as $test) {
-                    if ($test instanceof TestSuite) {
+                    if ($test instanceof \PHPUnit_Framework_TestSuite || $test instanceof TestSuite) {
                         if (!class_exists($test->getName(), false)) {
                             $testSuites[] = $test;
                             continue;
@@ -166,12 +172,19 @@ class SymfonyTestsListenerTrait
                 }
             }
         } elseif (2 === $this->state) {
-            $skipped = array();
-            foreach ($suite->tests() as $test) {
-                if (!($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase)
-                    || isset($this->wasSkipped[$suiteName]['*'])
-                    || isset($this->wasSkipped[$suiteName][$test->getName()])) {
-                    $skipped[] = $test;
+            $suites = [$suite];
+            $skipped = [];
+            while ($s = array_shift($suites)) {
+                foreach ($s->tests() as $test) {
+                    if ($test instanceof \PHPUnit_Framework_TestSuite || $test instanceof TestSuite) {
+                        $suites[] = $test;
+                        continue;
+                    }
+                    if (($test instanceof \PHPUnit_Framework_TestCase || $test instanceof TestCase)
+                        && isset($this->wasSkipped[\get_class($test)][$test->getName()])
+                    ) {
+                        $skipped[] = $test;
+                    }
                 }
             }
             $suite->setTests($skipped);
@@ -181,25 +194,13 @@ class SymfonyTestsListenerTrait
     public function addSkippedTest($test, \Exception $e, $time)
     {
         if (0 < $this->state) {
-            if ($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase) {
-                $class = \get_class($test);
-                $method = $test->getName();
-            } else {
-                $class = $test->getName();
-                $method = '*';
-            }
-
-            $this->isSkipped[$class][$method] = 1;
+            $this->isSkipped[\get_class($test)][$test->getName()] = 1;
         }
     }
 
     public function startTest($test)
     {
-        if (-2 < $this->state && ($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase)) {
-            if (null !== $test->getTestResultObject()) {
-                $this->reportUselessTests = $test->getTestResultObject()->isStrictAboutTestsThatDoNotTestAnything();
-            }
-
+        if (-2 < $this->state && ($test instanceof \PHPUnit_Framework_TestCase || $test instanceof TestCase)) {
             // This event is triggered before the test is re-run in isolation
             if ($this->willBeIsolated($test)) {
                 $this->runsInSeparateProcess = tempnam(sys_get_temp_dir(), 'deprec');
@@ -218,6 +219,10 @@ class SymfonyTestsListenerTrait
                 }
             }
 
+            if (!$test->getTestResultObject()) {
+                return;
+            }
+
             $annotations = Test::parseTestMethodAnnotations(\get_class($test), $test->getName(false));
 
             if (isset($annotations['class']['expectedDeprecation'])) {
@@ -231,27 +236,19 @@ class SymfonyTestsListenerTrait
                 $test->getTestResultObject()->beStrictAboutTestsThatDoNotTestAnything(false);
 
                 $this->expectedDeprecations = $annotations['method']['expectedDeprecation'];
-                $this->previousErrorHandler = set_error_handler(array($this, 'handleError'));
+                $this->previousErrorHandler = set_error_handler([$this, 'handleError']);
             }
-        }
-    }
-
-    public function addWarning($test, $e, $time)
-    {
-        if ($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase) {
-            $this->testsWithWarnings[$test->getName()] = true;
         }
     }
 
     public function endTest($test, $time)
     {
+        if (class_exists(DebugClassLoader::class, false)) {
+            DebugClassLoader::checkClasses();
+        }
+
         $className = \get_class($test);
         $groups = Test::getGroups($className, $test->getName(false));
-
-        if (null !== $this->reportUselessTests) {
-            $test->getTestResultObject()->beStrictAboutTestsThatDoNotTestAnything($this->reportUselessTests);
-            $this->reportUselessTests = null;
-        }
 
         if ($errored = null !== $this->error) {
             $test->getTestResultObject()->addError($test, $this->error, 0);
@@ -262,26 +259,26 @@ class SymfonyTestsListenerTrait
             $deprecations = file_get_contents($this->runsInSeparateProcess);
             unlink($this->runsInSeparateProcess);
             putenv('SYMFONY_DEPRECATIONS_SERIALIZE');
-            foreach ($deprecations ? unserialize($deprecations) : array() as $deprecation) {
-                $error = serialize(array('deprecation' => $deprecation[1], 'class' => $className, 'method' => $test->getName(false), 'triggering_file' => isset($deprecation[2]) ? $deprecation[2] : null));
+            foreach ($deprecations ? unserialize($deprecations) : [] as $deprecation) {
+                $error = serialize(['deprecation' => $deprecation[1], 'class' => $className, 'method' => $test->getName(false), 'triggering_file' => isset($deprecation[2]) ? $deprecation[2] : null, 'files_stack' => isset($deprecation[3]) ? $deprecation[3] : []]);
                 if ($deprecation[0]) {
                     // unsilenced on purpose
-                    trigger_error($error, E_USER_DEPRECATED);
+                    trigger_error($error, \E_USER_DEPRECATED);
                 } else {
-                    @trigger_error($error, E_USER_DEPRECATED);
+                    @trigger_error($error, \E_USER_DEPRECATED);
                 }
             }
             $this->runsInSeparateProcess = false;
         }
 
         if ($this->expectedDeprecations) {
-            if (!\in_array($test->getStatus(), array(BaseTestRunner::STATUS_SKIPPED, BaseTestRunner::STATUS_INCOMPLETE), true)) {
+            if (!\in_array($test->getStatus(), [BaseTestRunner::STATUS_SKIPPED, BaseTestRunner::STATUS_INCOMPLETE], true)) {
                 $test->addToAssertionCount(\count($this->expectedDeprecations));
             }
 
             restore_error_handler();
 
-            if (!$errored && !\in_array($test->getStatus(), array(BaseTestRunner::STATUS_SKIPPED, BaseTestRunner::STATUS_INCOMPLETE, BaseTestRunner::STATUS_FAILURE, BaseTestRunner::STATUS_ERROR), true)) {
+            if (!$errored && !\in_array($test->getStatus(), [BaseTestRunner::STATUS_SKIPPED, BaseTestRunner::STATUS_INCOMPLETE, BaseTestRunner::STATUS_FAILURE, BaseTestRunner::STATUS_ERROR], true)) {
                 try {
                     $prefix = "@expectedDeprecation:\n";
                     $test->assertStringMatchesFormat($prefix.'%A  '.implode("\n%A  ", $this->expectedDeprecations)."\n%A", $prefix.'  '.implode("\n  ", $this->gatheredDeprecations)."\n");
@@ -290,22 +287,22 @@ class SymfonyTestsListenerTrait
                 }
             }
 
-            $this->expectedDeprecations = $this->gatheredDeprecations = array();
+            $this->expectedDeprecations = $this->gatheredDeprecations = [];
             $this->previousErrorHandler = null;
         }
-        if (!$this->runsInSeparateProcess && -2 < $this->state && ($test instanceof \PHPUnit\Framework\TestCase || $test instanceof TestCase)) {
+        if (!$this->runsInSeparateProcess && -2 < $this->state && ($test instanceof \PHPUnit_Framework_TestCase || $test instanceof TestCase)) {
             if (\in_array('time-sensitive', $groups, true)) {
                 ClockMock::withClockMock(false);
             }
             if (\in_array('dns-sensitive', $groups, true)) {
-                DnsMock::withMockedHosts(array());
+                DnsMock::withMockedHosts([]);
             }
         }
     }
 
-    public function handleError($type, $msg, $file, $line, $context = array())
+    public function handleError($type, $msg, $file, $line, $context = [])
     {
-        if (E_USER_DEPRECATED !== $type && E_DEPRECATED !== $type) {
+        if (\E_USER_DEPRECATED !== $type && \E_DEPRECATED !== $type) {
             $h = $this->previousErrorHandler;
 
             return $h ? $h($type, $msg, $file, $line, $context) : false;
@@ -316,7 +313,7 @@ class SymfonyTestsListenerTrait
         if (\is_array($parsedMsg)) {
             $msg = $parsedMsg['deprecation'];
         }
-        if (error_reporting()) {
+        if (error_reporting() & $type) {
             $msg = 'Unsilenced deprecation: '.$msg;
         }
         $this->gatheredDeprecations[] = $msg;

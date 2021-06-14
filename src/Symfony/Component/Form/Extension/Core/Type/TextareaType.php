@@ -23,6 +23,7 @@ class TextareaType extends AbstractType
     public function buildView(FormView $view, FormInterface $form, array $options)
     {
         $view->vars['pattern'] = null;
+        unset($view->vars['attr']['pattern']);
     }
 
     /**
@@ -30,7 +31,7 @@ class TextareaType extends AbstractType
      */
     public function getParent()
     {
-        return __NAMESPACE__.'\TextType';
+        return TextType::class;
     }
 
     /**

@@ -480,7 +480,7 @@ class PhpMatcherDumperTest extends TestCase
         $options = ['class' => $this->matcherClass];
 
         if ($redirectableStub) {
-            $options['base_class'] = '\Symfony\Component\Routing\Tests\Matcher\Dumper\RedirectableUrlMatcherStub';
+            $options['base_class'] = RedirectableUrlMatcherStub::class;
         }
 
         $dumper = new PhpMatcherDumper($collection);
@@ -494,7 +494,7 @@ class PhpMatcherDumperTest extends TestCase
 
     public function testGenerateDumperMatcherWithObject()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Symfony\Component\Routing\Route cannot contain objects');
         $routeCollection = new RouteCollection();
         $routeCollection->add('_', new Route('/', [new \stdClass()]));

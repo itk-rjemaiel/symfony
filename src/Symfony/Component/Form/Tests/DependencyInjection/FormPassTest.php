@@ -58,12 +58,14 @@ class FormPassTest extends TestCase
 
         $extDefinition = $container->getDefinition('form.extension');
 
+        $locator = $extDefinition->getArgument(0);
+        $this->assertTrue(!$locator->isPublic() || $locator->isPrivate());
         $this->assertEquals(
             (new Definition(ServiceLocator::class, [[
                 __CLASS__.'_Type1' => new ServiceClosureArgument(new Reference('my.type1')),
                 __CLASS__.'_Type2' => new ServiceClosureArgument(new Reference('my.type2')),
             ]]))->addTag('container.service_locator')->setPublic(false),
-            $extDefinition->getArgument(0)
+            $locator->setPublic(false)
         );
     }
 
@@ -282,7 +284,7 @@ class FormPassTest extends TestCase
 
     public function testAddTaggedFormTypeExtensionWithoutExtendedTypeAttributeNorImplementingGetExtendedTypes()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('"form.type_extension" tagged services have to implement the static getExtendedTypes() method. Class "stdClass" for service "my.type_extension" does not implement it.');
         $container = $this->createContainerBuilder();
 
@@ -296,7 +298,7 @@ class FormPassTest extends TestCase
 
     public function testAddTaggedFormTypeExtensionWithoutExtendingAnyType()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('The getExtendedTypes() method for service "my.type_extension" does not return any extended types.');
         $container = $this->createContainerBuilder();
 

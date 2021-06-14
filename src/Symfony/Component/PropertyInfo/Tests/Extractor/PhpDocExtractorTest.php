@@ -9,11 +9,17 @@
  * file that was distributed with this source code.
  */
 
-namespace Symfony\Component\PropertyInfo\Tests\PhpDocExtractor;
+namespace Symfony\Component\PropertyInfo\Tests\Extractor;
 
+use phpDocumentor\Reflection\DocBlock\StandardTagFactory;
+use phpDocumentor\Reflection\DocBlock\Tags\InvalidTag;
 use phpDocumentor\Reflection\Types\Collection;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\TraitUsage\DummyUsedInTrait;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\TraitUsage\DummyUsingTrait;
 use Symfony\Component\PropertyInfo\Type;
 
 /**
@@ -44,6 +50,26 @@ class PhpDocExtractorTest extends TestCase
     public function testParamTagTypeIsOmitted()
     {
         $this->assertNull($this->extractor->getTypes(OmittedParamTagTypeDocBlock::class, 'omittedType'));
+    }
+
+    public function invalidTypesProvider()
+    {
+        return [
+            'pub' => ['pub', null, null],
+            'stat' => ['stat', null, null],
+            'foo' => ['foo', $this->isPhpDocumentorV5() ? 'Foo.' : null, null],
+            'bar' => ['bar', $this->isPhpDocumentorV5() ? 'Bar.' : null, null],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidTypesProvider
+     */
+    public function testInvalid($property, $shortDescription, $longDescription)
+    {
+        $this->assertNull($this->extractor->getTypes('Symfony\Component\PropertyInfo\Tests\Fixtures\InvalidDummy', $property));
+        $this->assertSame($shortDescription, $this->extractor->getShortDescription('Symfony\Component\PropertyInfo\Tests\Fixtures\InvalidDummy', $property));
+        $this->assertSame($longDescription, $this->extractor->getLongDescription('Symfony\Component\PropertyInfo\Tests\Fixtures\InvalidDummy', $property));
     }
 
     /**
@@ -90,10 +116,12 @@ class PhpDocExtractorTest extends TestCase
             ['h', [new Type(Type::BUILTIN_TYPE_STRING, true)], null, null],
             ['i', [new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)], null, null],
             ['j', [new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')], null, null],
+            ['nullableCollectionOfNonNullableElements', [new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_INT, false))], null, null],
             ['donotexist', null, null, null],
             ['staticGetter', null, null, null],
             ['staticSetter', null, null, null],
-            ['emptyVar', null, null, null],
+            ['emptyVar', null, $this->isPhpDocumentorV5() ? 'This should not be removed.' : null, null],
+            ['self', [new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)], null, null],
         ];
     }
 
@@ -174,6 +202,7 @@ class PhpDocExtractorTest extends TestCase
             ['h', [new Type(Type::BUILTIN_TYPE_STRING, true)], null, null],
             ['i', [new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)], null, null],
             ['j', [new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')], null, null],
+            ['nullableCollectionOfNonNullableElements', [new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_INT, false))], null, null],
             ['donotexist', null, null, null],
             ['staticGetter', null, null, null],
             ['staticSetter', null, null, null],
@@ -214,6 +243,7 @@ class PhpDocExtractorTest extends TestCase
             ['h', [new Type(Type::BUILTIN_TYPE_STRING, true)], null, null],
             ['i', [new Type(Type::BUILTIN_TYPE_STRING, true), new Type(Type::BUILTIN_TYPE_INT, true)], null, null],
             ['j', [new Type(Type::BUILTIN_TYPE_OBJECT, true, 'DateTime')], null, null],
+            ['nullableCollectionOfNonNullableElements', [new Type(Type::BUILTIN_TYPE_ARRAY, true, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_INT, false))], null, null],
             ['donotexist', null, null, null],
             ['staticGetter', null, null, null],
             ['staticSetter', null, null, null],
@@ -246,6 +276,88 @@ class PhpDocExtractorTest extends TestCase
     public function testDocBlockFallback($property, $types)
     {
         $this->assertEquals($types, $this->extractor->getTypes('Symfony\Component\PropertyInfo\Tests\Fixtures\DockBlockFallback', $property));
+    }
+
+    /**
+     * @dataProvider propertiesDefinedByTraitsProvider
+     */
+    public function testPropertiesDefinedByTraits(string $property, Type $type)
+    {
+        $this->assertEquals([$type], $this->extractor->getTypes(DummyUsingTrait::class, $property));
+    }
+
+    public function propertiesDefinedByTraitsProvider(): array
+    {
+        return [
+            ['propertyInTraitPrimitiveType', new Type(Type::BUILTIN_TYPE_STRING)],
+            ['propertyInTraitObjectSameNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, DummyUsedInTrait::class)],
+            ['propertyInTraitObjectDifferentNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)],
+            ['propertyInExternalTraitPrimitiveType', new Type(Type::BUILTIN_TYPE_STRING)],
+            ['propertyInExternalTraitObjectSameNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)],
+            ['propertyInExternalTraitObjectDifferentNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, DummyUsedInTrait::class)],
+        ];
+    }
+
+    /**
+     * @dataProvider methodsDefinedByTraitsProvider
+     */
+    public function testMethodsDefinedByTraits(string $property, Type $type)
+    {
+        $this->assertEquals([$type], $this->extractor->getTypes(DummyUsingTrait::class, $property));
+    }
+
+    public function methodsDefinedByTraitsProvider(): array
+    {
+        return [
+            ['methodInTraitPrimitiveType', new Type(Type::BUILTIN_TYPE_STRING)],
+            ['methodInTraitObjectSameNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, DummyUsedInTrait::class)],
+            ['methodInTraitObjectDifferentNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)],
+            ['methodInExternalTraitPrimitiveType', new Type(Type::BUILTIN_TYPE_STRING)],
+            ['methodInExternalTraitObjectSameNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)],
+            ['methodInExternalTraitObjectDifferentNamespace', new Type(Type::BUILTIN_TYPE_OBJECT, false, DummyUsedInTrait::class)],
+        ];
+    }
+
+    /**
+     * @dataProvider propertiesStaticTypeProvider
+     */
+    public function testPropertiesStaticType(string $class, string $property, Type $type)
+    {
+        $this->assertEquals([$type], $this->extractor->getTypes($class, $property));
+    }
+
+    public function propertiesStaticTypeProvider(): array
+    {
+        return [
+            [ParentDummy::class, 'propertyTypeStatic', new Type(Type::BUILTIN_TYPE_OBJECT, false, ParentDummy::class)],
+            [Dummy::class, 'propertyTypeStatic', new Type(Type::BUILTIN_TYPE_OBJECT, false, Dummy::class)],
+        ];
+    }
+
+    /**
+     * @dataProvider propertiesParentTypeProvider
+     */
+    public function testPropertiesParentType(string $class, string $property, ?array $types)
+    {
+        $this->assertEquals($types, $this->extractor->getTypes($class, $property));
+    }
+
+    public function propertiesParentTypeProvider(): array
+    {
+        return [
+            [ParentDummy::class, 'parentAnnotationNoParent', [new Type(Type::BUILTIN_TYPE_OBJECT, false, 'parent')]],
+            [Dummy::class, 'parentAnnotation', [new Type(Type::BUILTIN_TYPE_OBJECT, false, ParentDummy::class)]],
+        ];
+    }
+
+    protected function isPhpDocumentorV5()
+    {
+        if (class_exists(InvalidTag::class)) {
+            return true;
+        }
+
+        return (new \ReflectionMethod(StandardTagFactory::class, 'create'))
+            ->hasReturnType();
     }
 }
 

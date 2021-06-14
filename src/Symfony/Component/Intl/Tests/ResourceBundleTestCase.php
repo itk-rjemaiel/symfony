@@ -21,7 +21,7 @@ abstract class ResourceBundleTestCase extends TestCase
     // not loaded, because it is NOT possible to skip the execution of data
     // providers.
 
-    private static $locales = [
+    private const LOCALES = [
         'af',
         'af_NA',
         'af_ZA',
@@ -264,6 +264,19 @@ abstract class ResourceBundleTestCase extends TestCase
         'fa_AF',
         'fa_IR',
         'ff',
+        'ff_Adlm',
+        'ff_Adlm_BF',
+        'ff_Adlm_CM',
+        'ff_Adlm_GH',
+        'ff_Adlm_GM',
+        'ff_Adlm_GN',
+        'ff_Adlm_GW',
+        'ff_Adlm_LR',
+        'ff_Adlm_MR',
+        'ff_Adlm_NE',
+        'ff_Adlm_NG',
+        'ff_Adlm_SL',
+        'ff_Adlm_SN',
         'ff_CM',
         'ff_GN',
         'ff_Latn',
@@ -336,6 +349,7 @@ abstract class ResourceBundleTestCase extends TestCase
         'fy',
         'fy_NL',
         'ga',
+        'ga_GB',
         'ga_IE',
         'gd',
         'gd_GB',
@@ -400,6 +414,8 @@ abstract class ResourceBundleTestCase extends TestCase
         'ko_KP',
         'ko_KR',
         'ks',
+        'ks_Arab',
+        'ks_Arab_IN',
         'ks_IN',
         'ku',
         'ku_TR',
@@ -439,6 +455,7 @@ abstract class ResourceBundleTestCase extends TestCase
         'mr_IN',
         'ms',
         'ms_BN',
+        'ms_ID',
         'ms_MY',
         'ms_SG',
         'mt',
@@ -519,7 +536,13 @@ abstract class ResourceBundleTestCase extends TestCase
         'ru_UA',
         'rw',
         'rw_RW',
+        'sa',
+        'sa_IN',
         'sd',
+        'sd_Arab',
+        'sd_Arab_PK',
+        'sd_Deva',
+        'sd_Deva_IN',
         'sd_PK',
         'se',
         'se_FI',
@@ -569,6 +592,10 @@ abstract class ResourceBundleTestCase extends TestCase
         'sr_RS',
         'sr_XK',
         'sr_YU',
+        'su',
+        'su_ID',
+        'su_Latn',
+        'su_Latn_ID',
         'sv',
         'sv_AX',
         'sv_FI',
@@ -650,7 +677,7 @@ abstract class ResourceBundleTestCase extends TestCase
         'zu_ZA',
     ];
 
-    private static $localeAliases = [
+    private const LOCALE_ALIASES = [
         'az_AZ' => 'az_Latn_AZ',
         'bs_BA' => 'bs_Latn_BA',
         'en_NH' => 'en_VU',
@@ -663,18 +690,20 @@ abstract class ResourceBundleTestCase extends TestCase
         'in_ID' => 'id_ID',
         'iw' => 'he',
         'iw_IL' => 'he_IL',
+        'ks_IN' => 'ks_Arab_IN',
         'mo' => 'ro',
         'no' => 'nb',
         'no_NO' => 'nb_NO',
         'no_NO_NY' => 'nn_NO',
         'pa_IN' => 'pa_Guru_IN',
         'pa_PK' => 'pa_Arab_PK',
+        'sd_PK' => 'sd_Arab_PK',
         'sh' => 'sr_Latn',
         'sh_BA' => 'sr_Latn_BA',
         'sh_CS' => 'sr_Latn_RS',
         'sh_YU' => 'sr_Latn_RS',
         'sr_BA' => 'sr_Cyrl_BA',
-        'sr_CS' => 'sr_Cyrl_RS',
+        'sr_CS' => 'sr_RS',
         'sr_Cyrl_CS' => 'sr_Cyrl_RS',
         'sr_Cyrl_YU' => 'sr_Cyrl_RS',
         'sr_Latn_CS' => 'sr_Latn_RS',
@@ -682,7 +711,8 @@ abstract class ResourceBundleTestCase extends TestCase
         'sr_ME' => 'sr_Latn_ME',
         'sr_RS' => 'sr_Cyrl_RS',
         'sr_XK' => 'sr_Cyrl_XK',
-        'sr_YU' => 'sr_Cyrl_RS',
+        'sr_YU' => 'sr_RS',
+        'su_ID' => 'su_Latn_ID',
         'tl' => 'fil',
         'tl_PH' => 'fil_PH',
         'uz_AF' => 'uz_Arab_AF',
@@ -695,11 +725,18 @@ abstract class ResourceBundleTestCase extends TestCase
     ];
 
     private static $rootLocales;
+    private $defaultLocale;
 
     protected function setUp(): void
     {
+        $this->defaultLocale = \Locale::getDefault();
         Locale::setDefault('en');
         Locale::setDefaultFallback('en');
+    }
+
+    protected function tearDown(): void
+    {
+        \Locale::setDefault($this->defaultLocale);
     }
 
     public function provideLocales()
@@ -729,12 +766,12 @@ abstract class ResourceBundleTestCase extends TestCase
 
     protected function getLocales()
     {
-        return self::$locales;
+        return self::LOCALES;
     }
 
     protected function getLocaleAliases()
     {
-        return self::$localeAliases;
+        return self::LOCALE_ALIASES;
     }
 
     protected function getRootLocales()

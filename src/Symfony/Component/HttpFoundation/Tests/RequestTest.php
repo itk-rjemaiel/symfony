@@ -12,6 +12,7 @@
 namespace Symfony\Component\HttpFoundation\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Session;
@@ -408,12 +409,10 @@ class RequestTest extends TestCase
 
         $request->setRequestFormat('atom');
         $request->headers->set('Accept', 'application/ld+json');
-        $request->headers->set('Content-Type', 'application/merge-patch+json');
         $this->assertSame('atom', $request->getPreferredFormat());
 
         $request = new Request();
         $request->headers->set('Accept', 'application/xml');
-        $request->headers->set('Content-Type', 'application/json');
         $this->assertSame('xml', $request->getPreferredFormat());
 
         $request = new Request();
@@ -447,7 +446,7 @@ class RequestTest extends TestCase
     public function getFormatToMimeTypeMapProviderWithAdditionalNullFormat()
     {
         return array_merge(
-            [[null, [null, 'unexistent-mime-type']]],
+            [[null, ['unexistent-mime-type']]],
             $this->getFormatToMimeTypeMapProvider()
         );
     }
@@ -729,7 +728,7 @@ class RequestTest extends TestCase
     }
 
     /**
-     * @dataProvider getRelativeUriForPathData()
+     * @dataProvider getRelativeUriForPathData
      */
     public function testGetRelativeUriForPath($expected, $pathinfo, $path)
     {
@@ -807,7 +806,7 @@ class RequestTest extends TestCase
             ['bar=&foo=bar', 'bar=&foo=bar', '->works with empty parameters'],
             ['foo=bar&bar=', 'bar=&foo=bar', 'sorts keys alphabetically'],
 
-            // GET parameters, that are submitted from a HTML form, encode spaces as "+" by default (as defined in enctype application/x-www-form-urlencoded).
+            // GET parameters, that are submitted from an HTML form, encode spaces as "+" by default (as defined in enctype application/x-www-form-urlencoded).
             // PHP also converts "+" to spaces when filling the global _GET or when using the function parse_str.
             ['baz=Foo%20Baz&bar=Foo+Bar', 'bar=Foo%20Bar&baz=Foo%20Baz', 'normalizes spaces in both encodings "%20" and "+"'],
 
@@ -920,7 +919,7 @@ class RequestTest extends TestCase
 
     public function testGetHostWithFakeHttpHostValue()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $request = new Request();
         $request->initialize([], [], [], [], [], ['HTTP_HOST' => 'www.host.com?query=string']);
         $request->getHost();
@@ -1089,7 +1088,7 @@ class RequestTest extends TestCase
      */
     public function testGetClientIpsWithConflictingHeaders($httpForwarded, $httpXForwardedFor)
     {
-        $this->expectException('Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException');
+        $this->expectException(ConflictingHeadersException::class);
         $request = new Request();
 
         $server = [
@@ -1765,6 +1764,46 @@ class RequestTest extends TestCase
                 '/foo',
                 '/bar+baz',
             ],
+            [
+                '/sub/foo/bar',
+                [
+                    'SCRIPT_FILENAME' => '/home/John Doe/public_html/foo/app.php',
+                    'SCRIPT_NAME' => '/foo/app.php',
+                    'PHP_SELF' => '/foo/app.php',
+                ],
+                '',
+                '/sub/foo/bar',
+            ],
+            [
+                '/sub/foo/app.php/bar',
+                [
+                    'SCRIPT_FILENAME' => '/home/John Doe/public_html/foo/app.php',
+                    'SCRIPT_NAME' => '/foo/app.php',
+                    'PHP_SELF' => '/foo/app.php',
+                ],
+                '/sub/foo/app.php',
+                '/bar',
+            ],
+            [
+                '/sub/foo/bar/baz',
+                [
+                    'SCRIPT_FILENAME' => '/home/John Doe/public_html/foo/app2.phpx',
+                    'SCRIPT_NAME' => '/foo/app2.phpx',
+                    'PHP_SELF' => '/foo/app2.phpx',
+                ],
+                '',
+                '/sub/foo/bar/baz',
+            ],
+            [
+                '/foo/api/bar',
+                [
+                    'SCRIPT_FILENAME' => '/var/www/api/index.php',
+                    'SCRIPT_NAME' => '/api/index.php',
+                    'PHP_SELF' => '/api/index.php',
+                ],
+                '',
+                '/foo/api/bar',
+            ],
         ];
     }
 
@@ -1797,13 +1836,13 @@ class RequestTest extends TestCase
 
     private function disableHttpMethodParameterOverride()
     {
-        $class = new \ReflectionClass('Symfony\\Component\\HttpFoundation\\Request');
+        $class = new \ReflectionClass(Request::class);
         $property = $class->getProperty('httpMethodParameterOverride');
         $property->setAccessible(true);
         $property->setValue(false);
     }
 
-    private function getRequestInstanceForClientIpTests($remoteAddr, $httpForwardedFor, $trustedProxies)
+    private function getRequestInstanceForClientIpTests(string $remoteAddr, ?string $httpForwardedFor, ?array $trustedProxies): Request
     {
         $request = new Request();
 
@@ -1821,7 +1860,7 @@ class RequestTest extends TestCase
         return $request;
     }
 
-    private function getRequestInstanceForClientIpsForwardedTests($remoteAddr, $httpForwarded, $trustedProxies)
+    private function getRequestInstanceForClientIpsForwardedTests(string $remoteAddr, ?string $httpForwarded, ?array $trustedProxies): Request
     {
         $request = new Request();
 
@@ -2323,6 +2362,26 @@ class RequestTest extends TestCase
         $request->headers->set('X-Forwarded-Port', '');
 
         $this->assertSame(80, $request->getPort());
+    }
+
+    /**
+     * @dataProvider trustedProxiesRemoteAddr
+     */
+    public function testTrustedProxiesRemoteAddr($serverRemoteAddr, $trustedProxies, $result)
+    {
+        $_SERVER['REMOTE_ADDR'] = $serverRemoteAddr;
+        Request::setTrustedProxies($trustedProxies, Request::HEADER_X_FORWARDED_ALL);
+        $this->assertSame($result, Request::getTrustedProxies());
+    }
+
+    public function trustedProxiesRemoteAddr()
+    {
+        return [
+            ['1.1.1.1', ['REMOTE_ADDR'], ['1.1.1.1']],
+            ['1.1.1.1', ['REMOTE_ADDR', '2.2.2.2'], ['1.1.1.1', '2.2.2.2']],
+            [null, ['REMOTE_ADDR'], []],
+            [null, ['REMOTE_ADDR', '2.2.2.2'], ['2.2.2.2']],
+        ];
     }
 }
 

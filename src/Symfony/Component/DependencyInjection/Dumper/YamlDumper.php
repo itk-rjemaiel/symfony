@@ -45,7 +45,7 @@ class YamlDumper extends Dumper
      */
     public function dump(array $options = [])
     {
-        if (!class_exists('Symfony\Component\Yaml\Dumper')) {
+        if (!class_exists(\Symfony\Component\Yaml\Dumper::class)) {
             throw new LogicException('Unable to dump the container as the Symfony Yaml Component is not installed.');
         }
 
@@ -131,14 +131,20 @@ class YamlDumper extends Dumper
             $code .= "        shared: false\n";
         }
 
-        if (null !== $decorated = $definition->getDecoratedService()) {
-            list($decorated, $renamedId, $priority) = $decorated;
+        if (null !== $decoratedService = $definition->getDecoratedService()) {
+            [$decorated, $renamedId, $priority] = $decoratedService;
             $code .= sprintf("        decorates: %s\n", $decorated);
             if (null !== $renamedId) {
                 $code .= sprintf("        decoration_inner_name: %s\n", $renamedId);
             }
             if (0 !== $priority) {
                 $code .= sprintf("        decoration_priority: %s\n", $priority);
+            }
+
+            $decorationOnInvalid = $decoratedService[3] ?? ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE;
+            if (\in_array($decorationOnInvalid, [ContainerInterface::IGNORE_ON_INVALID_REFERENCE, ContainerInterface::NULL_ON_INVALID_REFERENCE])) {
+                $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE === $decorationOnInvalid ? 'null' : 'ignore';
+                $code .= sprintf("        decoration_on_invalid: %s\n", $invalidBehavior);
             }
         }
 
@@ -157,8 +163,8 @@ class YamlDumper extends Dumper
     {
         $deprecated = $id->isDeprecated() ? sprintf("        deprecated: %s\n", $id->getDeprecationMessage('%alias_id%')) : '';
 
-        if ($id->isPrivate()) {
-            return sprintf("    %s: '@%s'\n%s", $alias, $id, $deprecated);
+        if (!$id->isDeprecated() && $id->isPrivate()) {
+            return sprintf("    %s: '@%s'\n", $alias, $id);
         }
 
         return sprintf("    %s:\n        alias: %s\n        public: %s\n%s", $alias, $id, $id->isPublic() ? 'true' : 'false', $deprecated);
@@ -201,6 +207,8 @@ class YamlDumper extends Dumper
      * Dumps callable to YAML format.
      *
      * @param mixed $callable
+     *
+     * @return mixed
      */
     private function dumpCallable($callable)
     {
@@ -226,6 +234,8 @@ class YamlDumper extends Dumper
     {
         if ($value instanceof ServiceClosureArgument) {
             $value = $value->getValues()[0];
+
+            return new TaggedValue('service_closure', $this->getServiceCall((string) $value, $value));
         }
         if ($value instanceof ArgumentInterface) {
             $tag = $value;
@@ -241,6 +251,9 @@ class YamlDumper extends Dumper
 
                     if (null !== $tag->getDefaultIndexMethod()) {
                         $content['default_index_method'] = $tag->getDefaultIndexMethod();
+                    }
+                    if (null !== $tag->getDefaultPriorityMethod()) {
+                        $content['default_priority_method'] = $tag->getDefaultPriorityMethod();
                     }
                 }
 
@@ -299,7 +312,7 @@ class YamlDumper extends Dumper
         return sprintf('%%%s%%', $id);
     }
 
-    private function getExpressionCall(string $expression)
+    private function getExpressionCall(string $expression): string
     {
         return sprintf('@=%s', $expression);
     }

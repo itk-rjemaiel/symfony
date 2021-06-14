@@ -26,9 +26,9 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
  */
 class SessionAuthenticationStrategy implements SessionAuthenticationStrategyInterface
 {
-    const NONE = 'none';
-    const MIGRATE = 'migrate';
-    const INVALIDATE = 'invalidate';
+    public const NONE = 'none';
+    public const MIGRATE = 'migrate';
+    public const INVALIDATE = 'invalidate';
 
     private $strategy;
 
@@ -59,7 +59,7 @@ class SessionAuthenticationStrategy implements SessionAuthenticationStrategyInte
                 return;
 
             default:
-                throw new \RuntimeException(sprintf('Invalid session authentication strategy "%s"', $this->strategy));
+                throw new \RuntimeException(sprintf('Invalid session authentication strategy "%s".', $this->strategy));
         }
     }
 }

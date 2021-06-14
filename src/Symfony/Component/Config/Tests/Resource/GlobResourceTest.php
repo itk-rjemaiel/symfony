@@ -34,7 +34,7 @@ class GlobResourceTest extends TestCase
 
         $file = $dir.'/Resource'.\DIRECTORY_SEPARATOR.'ConditionalClass.php';
         $this->assertEquals([$file => new \SplFileInfo($file)], $paths);
-        $this->assertInstanceOf('SplFileInfo', current($paths));
+        $this->assertInstanceOf(\SplFileInfo::class, current($paths));
         $this->assertSame($dir, $resource->getPrefix());
 
         $resource = new GlobResource($dir, '/**/Resource', true);
@@ -43,7 +43,7 @@ class GlobResourceTest extends TestCase
 
         $file = $dir.\DIRECTORY_SEPARATOR.'Resource'.\DIRECTORY_SEPARATOR.'ConditionalClass.php';
         $this->assertEquals([$file => $file], $paths);
-        $this->assertInstanceOf('SplFileInfo', current($paths));
+        $this->assertInstanceOf(\SplFileInfo::class, current($paths));
         $this->assertSame($dir, $resource->getPrefix());
     }
 
@@ -164,5 +164,48 @@ class GlobResourceTest extends TestCase
 
         touch($dir.'/Resource/TmpGlob');
         $this->assertFalse($resource->isFresh(0));
+    }
+
+    public function testBraceFallback()
+    {
+        $dir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures';
+        $resource = new GlobResource($dir, '/*{/*/*.txt,.x{m,n}l}', true);
+
+        $p = new \ReflectionProperty($resource, 'globBrace');
+        $p->setAccessible(true);
+        $p->setValue($resource, 0);
+
+        $expected = [
+            $dir.'/Exclude/ExcludeToo/AnotheExcludedFile.txt',
+            $dir.'/ExcludeTrailingSlash/exclude/baz.txt',
+            $dir.'/foo.xml',
+        ];
+
+        $this->assertSame($expected, array_keys(iterator_to_array($resource)));
+    }
+
+    public function testUnbalancedBraceFallback()
+    {
+        $dir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures';
+        $resource = new GlobResource($dir, '/*{/*/*.txt,.x{m,nl}', true);
+
+        $p = new \ReflectionProperty($resource, 'globBrace');
+        $p->setAccessible(true);
+        $p->setValue($resource, 0);
+
+        $this->assertSame([], array_keys(iterator_to_array($resource)));
+    }
+
+    public function testSerializeUnserialize()
+    {
+        $dir = \dirname(__DIR__).\DIRECTORY_SEPARATOR.'Fixtures';
+        $resource = new GlobResource($dir, '/Resource', true);
+
+        $newResource = unserialize(serialize($resource));
+
+        $p = new \ReflectionProperty($resource, 'globBrace');
+        $p->setAccessible(true);
+
+        $this->assertEquals($p->getValue($resource), $p->getValue($newResource));
     }
 }

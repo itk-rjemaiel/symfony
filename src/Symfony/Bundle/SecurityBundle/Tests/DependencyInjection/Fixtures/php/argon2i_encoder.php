@@ -1,6 +1,6 @@
 <?php
 
-$this->load('container1.php', $container);
+$this->load('container1.php');
 
 $container->loadFromExtension('security', [
     'encoders' => [
@@ -8,7 +8,6 @@ $container->loadFromExtension('security', [
             'algorithm' => 'argon2i',
             'memory_cost' => 256,
             'time_cost' => 1,
-            'threads' => 2,
         ],
     ],
 ]);

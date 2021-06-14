@@ -12,8 +12,10 @@
 namespace Symfony\Component\Asset\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Asset\Context\ContextInterface;
 use Symfony\Component\Asset\PathPackage;
 use Symfony\Component\Asset\VersionStrategy\StaticVersionStrategy;
+use Symfony\Component\Asset\VersionStrategy\VersionStrategyInterface;
 
 class PathPackageTest extends TestCase
 {
@@ -23,7 +25,7 @@ class PathPackageTest extends TestCase
     public function testGetUrl($basePath, $format, $path, $expected)
     {
         $package = new PathPackage($basePath, new StaticVersionStrategy('v1', $format));
-        $this->assertEquals($expected, $package->getUrl($path));
+        $this->assertSame($expected, $package->getUrl($path));
     }
 
     public function getConfigs()
@@ -55,7 +57,7 @@ class PathPackageTest extends TestCase
     {
         $package = new PathPackage($basePath, new StaticVersionStrategy('v1', $format), $this->getContext($basePathRequest));
 
-        $this->assertEquals($expected, $package->getUrl($path));
+        $this->assertSame($expected, $package->getUrl($path));
     }
 
     public function getContextConfigs()
@@ -77,18 +79,18 @@ class PathPackageTest extends TestCase
 
     public function testVersionStrategyGivesAbsoluteURL()
     {
-        $versionStrategy = $this->getMockBuilder('Symfony\Component\Asset\VersionStrategy\VersionStrategyInterface')->getMock();
+        $versionStrategy = $this->createMock(VersionStrategyInterface::class);
         $versionStrategy->expects($this->any())
             ->method('applyVersion')
             ->willReturn('https://cdn.com/bar/main.css');
         $package = new PathPackage('/subdirectory', $versionStrategy, $this->getContext('/bar'));
 
-        $this->assertEquals('https://cdn.com/bar/main.css', $package->getUrl('main.css'));
+        $this->assertSame('https://cdn.com/bar/main.css', $package->getUrl('main.css'));
     }
 
     private function getContext($basePath)
     {
-        $context = $this->getMockBuilder('Symfony\Component\Asset\Context\ContextInterface')->getMock();
+        $context = $this->createMock(ContextInterface::class);
         $context->expects($this->any())->method('getBasePath')->willReturn($basePath);
 
         return $context;

@@ -15,6 +15,7 @@ use Symfony\Component\Config\Util\XmlUtils;
 use Symfony\Component\DependencyInjection\Alias;
 use Symfony\Component\DependencyInjection\Argument\BoundArgument;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
+use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
@@ -34,7 +35,9 @@ use Symfony\Component\ExpressionLanguage\Expression;
  */
 class XmlFileLoader extends FileLoader
 {
-    const NS = 'http://symfony.com/schema/dic/services';
+    public const NS = 'http://symfony.com/schema/dic/services';
+
+    protected $autoRegisterAliasesForSinglyImplementedInterfaces = false;
 
     /**
      * {@inheritdoc}
@@ -66,6 +69,7 @@ class XmlFileLoader extends FileLoader
             $this->parseDefinitions($xml, $path, $defaults);
         } finally {
             $this->instanceof = [];
+            $this->registerAliasesForSinglyImplementedInterfaces();
         }
     }
 
@@ -78,7 +82,7 @@ class XmlFileLoader extends FileLoader
             return false;
         }
 
-        if (null === $type && 'xml' === pathinfo($resource, PATHINFO_EXTENSION)) {
+        if (null === $type && 'xml' === pathinfo($resource, \PATHINFO_EXTENSION)) {
             return true;
         }
 
@@ -104,7 +108,7 @@ class XmlFileLoader extends FileLoader
         $defaultDirectory = \dirname($file);
         foreach ($imports as $import) {
             $this->setCurrentDir($defaultDirectory);
-            $this->import($import->getAttribute('resource'), XmlUtils::phpize($import->getAttribute('type')) ?: null, (bool) XmlUtils::phpize($import->getAttribute('ignore-errors')), $file);
+            $this->import($import->getAttribute('resource'), XmlUtils::phpize($import->getAttribute('type')) ?: null, XmlUtils::phpize($import->getAttribute('ignore-errors')) ?: false, $file);
         }
     }
 
@@ -168,7 +172,7 @@ class XmlFileLoader extends FileLoader
 
         foreach ($defaults['tags'] as $tag) {
             if ('' === $tag->getAttribute('name')) {
-                throw new InvalidArgumentException(sprintf('The tag name for tag "<defaults>" in %s must be a non-empty string.', $file));
+                throw new InvalidArgumentException(sprintf('The tag name for tag "<defaults>" in "%s" must be a non-empty string.', $file));
             }
         }
 
@@ -341,7 +345,7 @@ class XmlFileLoader extends FileLoader
             }
 
             if ('' === $tag->getAttribute('name')) {
-                throw new InvalidArgumentException(sprintf('The tag name for service "%s" in %s must be a non-empty string.', (string) $service->getAttribute('id'), $file));
+                throw new InvalidArgumentException(sprintf('The tag name for service "%s" in "%s" must be a non-empty string.', (string) $service->getAttribute('id'), $file));
             }
 
             $definition->addTag($tag->getAttribute('name'), $parameters);
@@ -361,17 +365,29 @@ class XmlFileLoader extends FileLoader
             $definition->setBindings($bindings);
         }
 
-        if ($value = $service->getAttribute('decorates')) {
+        if ($decorates = $service->getAttribute('decorates')) {
+            $decorationOnInvalid = $service->getAttribute('decoration-on-invalid') ?: 'exception';
+            if ('exception' === $decorationOnInvalid) {
+                $invalidBehavior = ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE;
+            } elseif ('ignore' === $decorationOnInvalid) {
+                $invalidBehavior = ContainerInterface::IGNORE_ON_INVALID_REFERENCE;
+            } elseif ('null' === $decorationOnInvalid) {
+                $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE;
+            } else {
+                throw new InvalidArgumentException(sprintf('Invalid value "%s" for attribute "decoration-on-invalid" on service "%s". Did you mean "exception", "ignore" or "null" in "%s"?', $decorationOnInvalid, (string) $service->getAttribute('id'), $file));
+            }
+
             $renameId = $service->hasAttribute('decoration-inner-name') ? $service->getAttribute('decoration-inner-name') : null;
             $priority = $service->hasAttribute('decoration-priority') ? $service->getAttribute('decoration-priority') : 0;
-            $definition->setDecoratedService($value, $renameId, $priority);
+
+            $definition->setDecoratedService($decorates, $renameId, $priority, $invalidBehavior);
         }
 
         return $definition;
     }
 
     /**
-     * Parses a XML file to a \DOMDocument.
+     * Parses an XML file to a \DOMDocument.
      *
      * @throws InvalidArgumentException When loading of XML file returns error
      */
@@ -380,7 +396,7 @@ class XmlFileLoader extends FileLoader
         try {
             $dom = XmlUtils::loadFile($file, [$this, 'validateSchema']);
         } catch (\InvalidArgumentException $e) {
-            throw new InvalidArgumentException(sprintf('Unable to parse file "%s": %s', $file, $e->getMessage()), $e->getCode(), $e);
+            throw new InvalidArgumentException(sprintf('Unable to parse file "%s": ', $file).$e->getMessage(), $e->getCode(), $e);
         }
 
         $this->validateExtensions($dom, $file);
@@ -422,20 +438,20 @@ class XmlFileLoader extends FileLoader
         // anonymous services "in the wild"
         if (false !== $nodes = $xpath->query('//container:services/container:service[not(@id)]')) {
             foreach ($nodes as $node) {
-                throw new InvalidArgumentException(sprintf('Top-level services must have "id" attribute, none found in %s at line %d.', $file, $node->getLineNo()));
+                throw new InvalidArgumentException(sprintf('Top-level services must have "id" attribute, none found in "%s" at line %d.', $file, $node->getLineNo()));
             }
         }
 
         // resolve definitions
         uksort($definitions, 'strnatcmp');
-        foreach (array_reverse($definitions) as $id => list($domElement, $file)) {
+        foreach (array_reverse($definitions) as $id => [$domElement, $file]) {
             if (null !== $definition = $this->parseDefinition($domElement, $file, [])) {
                 $this->setDefinition($id, $definition);
             }
         }
     }
 
-    private function getArgumentsAsPhp(\DOMElement $node, string $name, string $file, bool $isChildDefinition = false)
+    private function getArgumentsAsPhp(\DOMElement $node, string $name, string $file, bool $isChildDefinition = false): array
     {
         $arguments = [];
         foreach ($this->getChildren($node, $name) as $arg) {
@@ -476,7 +492,7 @@ class XmlFileLoader extends FileLoader
                     break;
                 case 'expression':
                     if (!class_exists(Expression::class)) {
-                        throw new \LogicException(sprintf('The type="expression" attribute cannot be used without the ExpressionLanguage component. Try running "composer require symfony/expression-language".'));
+                        throw new \LogicException('The type="expression" attribute cannot be used without the ExpressionLanguage component. Try running "composer require symfony/expression-language".');
                     }
 
                     $arguments[$key] = new Expression($arg->nodeValue);
@@ -492,6 +508,13 @@ class XmlFileLoader extends FileLoader
                         throw new InvalidArgumentException(sprintf('Tag "<%s>" with type="iterator" only accepts collections of type="service" references in "%s".', $name, $file));
                     }
                     break;
+                case 'service_closure':
+                    if ('' === $arg->getAttribute('id')) {
+                        throw new InvalidArgumentException(sprintf('Tag "<%s>" with type="service_closure" has no or empty "id" attribute in "%s".', $name, $file));
+                    }
+
+                    $arguments[$key] = new ServiceClosureArgument(new Reference($arg->getAttribute('id'), $invalidBehavior));
+                    break;
                 case 'service_locator':
                     $arg = $this->getArgumentsAsPhp($arg, $name, $file);
                     try {
@@ -501,8 +524,6 @@ class XmlFileLoader extends FileLoader
                     }
                     break;
                 case 'tagged':
-                    @trigger_error(sprintf('Type "%s" of tag <%s> in "%s" is deprecated since Symfony 4.4 and will be removed in 5.0, use "tagged_iterator" instead.', $arg->getAttribute('type'), $name, $file), E_USER_DEPRECATED);
-                    // no break
                 case 'tagged_iterator':
                 case 'tagged_locator':
                     $type = $arg->getAttribute('type');
@@ -512,7 +533,7 @@ class XmlFileLoader extends FileLoader
                         throw new InvalidArgumentException(sprintf('Tag "<%s>" with type="%s" has no or empty "tag" attribute in "%s".', $name, $type, $file));
                     }
 
-                    $arguments[$key] = new TaggedIteratorArgument($arg->getAttribute('tag'), $arg->getAttribute('index-by') ?: null, $arg->getAttribute('default-index-method') ?: null, $forLocator);
+                    $arguments[$key] = new TaggedIteratorArgument($arg->getAttribute('tag'), $arg->getAttribute('index-by') ?: null, $arg->getAttribute('default-index-method') ?: null, $forLocator, $arg->getAttribute('default-priority-method') ?: null);
 
                     if ($forLocator) {
                         $arguments[$key] = new ServiceLocatorArgument($arguments[$key]);
@@ -578,7 +599,7 @@ class XmlFileLoader extends FileLoader
                     $path = str_replace([$ns, str_replace('http://', 'https://', $ns)], str_replace('\\', '/', $extension->getXsdValidationBasePath()).'/', $items[$i + 1]);
 
                     if (!is_file($path)) {
-                        throw new RuntimeException(sprintf('Extension "%s" references a non-existent XSD file "%s"', \get_class($extension), $path));
+                        throw new RuntimeException(sprintf('Extension "%s" references a non-existent XSD file "%s".', \get_class($extension), $path));
                     }
 
                     $schemaLocations[$items[$i]] = $path;
@@ -601,6 +622,8 @@ class XmlFileLoader extends FileLoader
                     array_shift($parts);
                     $locationstart = 'phar:///';
                 }
+            } elseif ('\\' === \DIRECTORY_SEPARATOR && 0 === strpos($location, '\\\\')) {
+                $locationstart = '';
             }
             $drive = '\\' === \DIRECTORY_SEPARATOR ? array_shift($parts).'/' : '';
             $location = $locationstart.$drive.implode('/', array_map('rawurlencode', $parts));
@@ -621,15 +644,48 @@ $imports
 EOF
         ;
 
-        $disableEntities = libxml_disable_entity_loader(false);
-        $valid = @$dom->schemaValidateSource($source);
-        libxml_disable_entity_loader($disableEntities);
-
+        if ($this->shouldEnableEntityLoader()) {
+            $disableEntities = libxml_disable_entity_loader(false);
+            $valid = @$dom->schemaValidateSource($source);
+            libxml_disable_entity_loader($disableEntities);
+        } else {
+            $valid = @$dom->schemaValidateSource($source);
+        }
         foreach ($tmpfiles as $tmpfile) {
             @unlink($tmpfile);
         }
 
         return $valid;
+    }
+
+    private function shouldEnableEntityLoader(): bool
+    {
+        // Version prior to 8.0 can be enabled without deprecation
+        if (\PHP_VERSION_ID < 80000) {
+            return true;
+        }
+
+        static $dom, $schema;
+        if (null === $dom) {
+            $dom = new \DOMDocument();
+            $dom->loadXML('<?xml version="1.0"?><test/>');
+
+            $tmpfile = tempnam(sys_get_temp_dir(), 'symfony');
+            register_shutdown_function(static function () use ($tmpfile) {
+                @unlink($tmpfile);
+            });
+            $schema = '<?xml version="1.0" encoding="utf-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:include schemaLocation="file:///'.str_replace('\\', '/', $tmpfile).'" />
+</xsd:schema>';
+            file_put_contents($tmpfile, '<?xml version="1.0" encoding="utf-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="test" type="testType" />
+  <xsd:complexType name="testType"/>
+</xsd:schema>');
+        }
+
+        return !@$dom->schemaValidateSource($schema);
     }
 
     private function validateAlias(\DOMElement $alias, string $file)
@@ -665,7 +721,7 @@ EOF
             // can it be handled by an extension?
             if (!$this->container->hasExtension($node->namespaceURI)) {
                 $extensionNamespaces = array_filter(array_map(function (ExtensionInterface $ext) { return $ext->getNamespace(); }, $this->container->getExtensions()));
-                throw new InvalidArgumentException(sprintf('There is no extension able to load the configuration for "%s" (in %s). Looked for namespace "%s", found %s', $node->tagName, $file, $node->namespaceURI, $extensionNamespaces ? sprintf('"%s"', implode('", "', $extensionNamespaces)) : 'none'));
+                throw new InvalidArgumentException(sprintf('There is no extension able to load the configuration for "%s" (in "%s"). Looked for namespace "%s", found "%s".', $node->tagName, $file, $node->namespaceURI, $extensionNamespaces ? implode('", "', $extensionNamespaces) : 'none'));
             }
         }
     }

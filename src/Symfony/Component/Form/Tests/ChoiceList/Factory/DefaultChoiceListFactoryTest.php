@@ -16,6 +16,7 @@ use Symfony\Component\Form\ChoiceList\ArrayChoiceList;
 use Symfony\Component\Form\ChoiceList\ChoiceListInterface;
 use Symfony\Component\Form\ChoiceList\Factory\DefaultChoiceListFactory;
 use Symfony\Component\Form\ChoiceList\LazyChoiceList;
+use Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface;
 use Symfony\Component\Form\ChoiceList\View\ChoiceGroupView;
 use Symfony\Component\Form\ChoiceList\View\ChoiceListView;
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
@@ -193,7 +194,7 @@ class DefaultChoiceListFactoryTest extends TestCase
 
     public function testCreateFromLoader()
     {
-        $loader = $this->getMockBuilder('Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface')->getMock();
+        $loader = $this->createMock(ChoiceLoaderInterface::class);
 
         $list = $this->factory->createListFromLoader($loader);
 
@@ -202,7 +203,7 @@ class DefaultChoiceListFactoryTest extends TestCase
 
     public function testCreateFromLoaderWithValues()
     {
-        $loader = $this->getMockBuilder('Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface')->getMock();
+        $loader = $this->createMock(ChoiceLoaderInterface::class);
 
         $value = function () {};
         $list = $this->factory->createListFromLoader($loader, $value);
@@ -251,6 +252,37 @@ class DefaultChoiceListFactoryTest extends TestCase
                 0 => 'A',
                 3 => 'D',
                 2 => 'C',
+            ],
+            $preferredLabels
+        );
+    }
+
+    public function testCreateViewFlatPreferredChoiceGroupsSameOrder()
+    {
+        $view = $this->factory->createView(
+            $this->list,
+            [$this->obj4, $this->obj2, $this->obj1, $this->obj3],
+            null, // label
+            null, // index
+            [$this, 'getGroup']
+        );
+
+        $preferredLabels = array_map(static function (ChoiceGroupView $groupView): array {
+            return array_map(static function (ChoiceView $view): string {
+                return $view->label;
+            }, $groupView->choices);
+        }, $view->preferredChoices);
+
+        $this->assertEquals(
+            [
+                'Group 2' => [
+                    2 => 'C',
+                    3 => 'D',
+                ],
+                'Group 1' => [
+                    0 => 'A',
+                    1 => 'B',
+                ],
             ],
             $preferredLabels
         );

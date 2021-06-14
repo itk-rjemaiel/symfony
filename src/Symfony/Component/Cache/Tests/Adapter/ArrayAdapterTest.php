@@ -25,7 +25,7 @@ class ArrayAdapterTest extends AdapterTestCase
         'testSaveWithoutExpire' => 'Assumes a shared cache which ArrayAdapter is not.',
     ];
 
-    public function createCachePool($defaultLifetime = 0): CacheItemPoolInterface
+    public function createCachePool(int $defaultLifetime = 0): CacheItemPoolInterface
     {
         return new ArrayAdapter($defaultLifetime);
     }
@@ -46,6 +46,10 @@ class ArrayAdapterTest extends AdapterTestCase
 
         // Miss (should be present as NULL in $values)
         $cache->getItem('bar');
+
+        // Fail (should be missing from $values)
+        $item = $cache->getItem('buz');
+        $cache->save($item->set(function() {}));
 
         $values = $cache->getValues();
 

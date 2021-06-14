@@ -15,11 +15,12 @@ use Symfony\Component\HttpClient\TraceableHttpClient;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\DataCollector\DataCollector;
+use Symfony\Component\HttpKernel\DataCollector\LateDataCollectorInterface;
 
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
  */
-final class HttpClientDataCollector extends DataCollector
+final class HttpClientDataCollector extends DataCollector implements LateDataCollectorInterface
 {
     /**
      * @var TraceableHttpClient[]
@@ -33,10 +34,12 @@ final class HttpClientDataCollector extends DataCollector
 
     /**
      * {@inheritdoc}
+     *
+     * @param \Throwable|null $exception
      */
-    public function collect(Request $request, Response $response, \Exception $exception = null)
+    public function collect(Request $request, Response $response/*, \Throwable $exception = null*/)
     {
-        $this->initData();
+        $this->reset();
 
         foreach ($this->clients as $name => $client) {
             [$errorCount, $traces] = $this->collectOnClient($client);
@@ -48,6 +51,13 @@ final class HttpClientDataCollector extends DataCollector
 
             $this->data['request_count'] += \count($traces);
             $this->data['error_count'] += $errorCount;
+        }
+    }
+
+    public function lateCollect()
+    {
+        foreach ($this->clients as $client) {
+            $client->reset();
         }
     }
 
@@ -69,23 +79,12 @@ final class HttpClientDataCollector extends DataCollector
     /**
      * {@inheritdoc}
      */
-    public function reset()
-    {
-        $this->initData();
-        foreach ($this->clients as $client) {
-            $client->reset();
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     public function getName(): string
     {
         return 'http_client';
     }
 
-    private function initData()
+    public function reset()
     {
         $this->data = [
             'clients' => [],
@@ -113,15 +112,15 @@ final class HttpClientDataCollector extends DataCollector
             }
 
             $info = $trace['info'];
-            $traces[$i]['http_code'] = $info['http_code'];
+            $traces[$i]['http_code'] = $info['http_code'] ?? 0;
 
             unset($info['filetime'], $info['http_code'], $info['ssl_verify_result'], $info['content_type']);
 
-            if ($trace['method'] === $info['http_method']) {
+            if (($info['http_method'] ?? null) === $trace['method']) {
                 unset($info['http_method']);
             }
 
-            if ($trace['url'] === $info['url']) {
+            if (($info['url'] ?? null) === $trace['url']) {
                 unset($info['url']);
             }
 
@@ -133,6 +132,7 @@ final class HttpClientDataCollector extends DataCollector
 
             $debugInfo = array_diff_key($info, $baseInfo);
             $info = array_diff_key($info, $debugInfo) + ['debug_info' => $debugInfo];
+            unset($traces[$i]['info']); // break PHP reference used by TraceableHttpClient
             $traces[$i]['info'] = $this->cloneVar($info);
             $traces[$i]['options'] = $this->cloneVar($trace['options']);
         }

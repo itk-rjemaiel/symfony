@@ -11,12 +11,15 @@
 
 namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
+use Symfony\Component\Form\Exception\UnexpectedTypeException;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Form;
 use Symfony\Component\Form\Tests\Fixtures\Author;
 use Symfony\Component\Form\Tests\Fixtures\AuthorType;
 
 class CollectionTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\CollectionType';
+    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\CollectionType';
 
     public function testContainsNoChildByDefault()
     {
@@ -37,8 +40,8 @@ class CollectionTypeTest extends BaseTypeTest
         ]);
         $form->setData(['foo@foo.com', 'foo@bar.com']);
 
-        $this->assertInstanceOf('Symfony\Component\Form\Form', $form[0]);
-        $this->assertInstanceOf('Symfony\Component\Form\Form', $form[1]);
+        $this->assertInstanceOf(Form::class, $form[0]);
+        $this->assertInstanceOf(Form::class, $form[1]);
         $this->assertCount(2, $form);
         $this->assertEquals('foo@foo.com', $form[0]->getData());
         $this->assertEquals('foo@bar.com', $form[1]->getData());
@@ -48,7 +51,7 @@ class CollectionTypeTest extends BaseTypeTest
         $this->assertEquals(20, $formAttrs1['maxlength']);
 
         $form->setData(['foo@baz.com']);
-        $this->assertInstanceOf('Symfony\Component\Form\Form', $form[0]);
+        $this->assertInstanceOf(Form::class, $form[0]);
         $this->assertArrayNotHasKey(1, $form);
         $this->assertCount(1, $form);
         $this->assertEquals('foo@baz.com', $form[0]->getData());
@@ -61,7 +64,7 @@ class CollectionTypeTest extends BaseTypeTest
         $form = $this->factory->create(static::TESTED_TYPE, null, [
             'entry_type' => TextTypeTest::TESTED_TYPE,
         ]);
-        $this->expectException('Symfony\Component\Form\Exception\UnexpectedTypeException');
+        $this->expectException(UnexpectedTypeException::class);
         $form->setData(new \stdClass());
     }
 
@@ -207,6 +210,28 @@ class CollectionTypeTest extends BaseTypeTest
         $this->assertFalse($form->has('1'));
         $this->assertEquals(new Author('s_first', 's_last'), $form[0]->getData());
         $this->assertEquals([new Author('s_first', 's_last')], $form->getData());
+    }
+
+    public function testNotDeleteEmptyIfInvalid()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'entry_type' => ChoiceType::class,
+            'entry_options' => [
+                'choices' => ['a', 'b'],
+            ],
+            'allow_add' => true,
+            'allow_delete' => true,
+            'delete_empty' => true,
+        ]);
+
+        $form->submit(['a', 'x', '']);
+
+        $this->assertSame(['a'], $form->getData());
+        $this->assertCount(2, $form);
+        $this->assertTrue($form->has('1'));
+        $this->assertFalse($form[1]->isValid());
+        $this->assertNull($form[1]->getData());
+        $this->assertSame('x', $form[1]->getViewData());
     }
 
     public function testNotResizedIfSubmittedWithExtraData()

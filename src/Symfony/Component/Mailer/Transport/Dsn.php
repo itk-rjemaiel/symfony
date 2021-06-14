@@ -42,15 +42,15 @@ final class Dsn
         }
 
         if (!isset($parsedDsn['scheme'])) {
-            throw new InvalidArgumentException(sprintf('The "%s" mailer DSN must contain a transport scheme.', $dsn));
+            throw new InvalidArgumentException(sprintf('The "%s" mailer DSN must contain a scheme.', $dsn));
         }
 
         if (!isset($parsedDsn['host'])) {
-            throw new InvalidArgumentException(sprintf('The "%s" mailer DSN must contain a mailer name.', $dsn));
+            throw new InvalidArgumentException(sprintf('The "%s" mailer DSN must contain a host (use "default" by default).', $dsn));
         }
 
-        $user = isset($parsedDsn['user']) ? urldecode($parsedDsn['user']) : null;
-        $password = isset($parsedDsn['pass']) ? urldecode($parsedDsn['pass']) : null;
+        $user = '' !== ($parsedDsn['user'] ?? '') ? urldecode($parsedDsn['user']) : null;
+        $password = '' !== ($parsedDsn['pass'] ?? '') ? urldecode($parsedDsn['pass']) : null;
         $port = $parsedDsn['port'] ?? null;
         parse_str($parsedDsn['query'] ?? '', $query);
 

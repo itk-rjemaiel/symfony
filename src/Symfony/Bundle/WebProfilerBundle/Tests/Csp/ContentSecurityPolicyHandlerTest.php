@@ -13,6 +13,7 @@ namespace Symfony\Bundle\WebProfilerBundle\Tests\Csp;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\WebProfilerBundle\Csp\ContentSecurityPolicyHandler;
+use Symfony\Bundle\WebProfilerBundle\Csp\NonceGenerator;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,7 +42,7 @@ class ContentSecurityPolicyHandlerTest extends TestCase
         $this->assertFalse($response->headers->has('X-SymfonyProfiler-Style-Nonce'));
 
         foreach ($expectedCsp as $header => $value) {
-            $this->assertSame($value, $response->headers->get($header));
+            $this->assertSame($value, $response->headers->get($header), $header);
         }
     }
 
@@ -137,6 +138,20 @@ class ContentSecurityPolicyHandlerTest extends TestCase
                 $nonce,
                 ['csp_script_nonce' => $nonce, 'csp_style_nonce' => $nonce],
                 $this->createRequest(),
+                $this->createResponse(['Content-Security-Policy' => 'default-src \'self\' domain.com; script-src \'self\' \'unsafe-inline\'; script-src-elem \'self\'; style-src \'self\' \'unsafe-inline\'; style-src-elem \'self\'', 'Content-Security-Policy-Report-Only' => 'default-src \'self\' domain-report-only.com; script-src \'self\' \'unsafe-inline\'; script-src-elem \'self\'; style-src \'self\' \'unsafe-inline\'; style-src-elem \'self\'']),
+                ['Content-Security-Policy' => 'default-src \'self\' domain.com; script-src \'self\' \'unsafe-inline\'; script-src-elem \'self\' \'unsafe-inline\' \'nonce-'.$nonce.'\'; style-src \'self\' \'unsafe-inline\'; style-src-elem \'self\' \'unsafe-inline\' \'nonce-'.$nonce.'\'', 'Content-Security-Policy-Report-Only' => 'default-src \'self\' domain-report-only.com; script-src \'self\' \'unsafe-inline\'; script-src-elem \'self\' \'unsafe-inline\' \'nonce-'.$nonce.'\'; style-src \'self\' \'unsafe-inline\'; style-src-elem \'self\' \'unsafe-inline\' \'nonce-'.$nonce.'\'', 'X-Content-Security-Policy' => null],
+            ],
+            [
+                $nonce,
+                ['csp_script_nonce' => $nonce, 'csp_style_nonce' => $nonce],
+                $this->createRequest(),
+                $this->createResponse(['Content-Security-Policy' => 'default-src \'none\'', 'Content-Security-Policy-Report-Only' => 'default-src \'none\'']),
+                ['Content-Security-Policy' => 'default-src \'none\'; script-src \'unsafe-inline\' \'nonce-'.$nonce.'\'; style-src \'unsafe-inline\' \'nonce-'.$nonce.'\'', 'Content-Security-Policy-Report-Only' => 'default-src \'none\'; script-src \'unsafe-inline\' \'nonce-'.$nonce.'\'; style-src \'unsafe-inline\' \'nonce-'.$nonce.'\'', 'X-Content-Security-Policy' => null],
+            ],
+            [
+                $nonce,
+                ['csp_script_nonce' => $nonce, 'csp_style_nonce' => $nonce],
+                $this->createRequest(),
                 $this->createResponse(['Content-Security-Policy' => 'script-src \'self\' \'unsafe-inline\'']),
                 ['Content-Security-Policy' => 'script-src \'self\' \'unsafe-inline\'', 'X-Content-Security-Policy' => null],
             ],
@@ -196,7 +211,7 @@ class ContentSecurityPolicyHandlerTest extends TestCase
 
     private function mockNonceGenerator($value)
     {
-        $generator = $this->getMockBuilder('Symfony\Bundle\WebProfilerBundle\Csp\NonceGenerator')->getMock();
+        $generator = $this->createMock(NonceGenerator::class);
 
         $generator->expects($this->any())
             ->method('generate')

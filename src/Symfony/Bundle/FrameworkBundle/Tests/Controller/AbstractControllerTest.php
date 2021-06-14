@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Controller;
 use Psr\Container\ContainerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Container;
+use Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException;
 use Symfony\Component\DependencyInjection\ParameterBag\ContainerBag;
 use Symfony\Component\DependencyInjection\ParameterBag\FrozenParameterBag;
 
@@ -39,7 +40,7 @@ class AbstractControllerTest extends ControllerTraitTest
             'security.authorization_checker' => '?Symfony\\Component\\Security\\Core\\Authorization\\AuthorizationCheckerInterface',
             'templating' => '?Symfony\\Component\\Templating\\EngineInterface',
             'twig' => '?Twig\\Environment',
-            'doctrine' => '?Doctrine\\Common\\Persistence\\ManagerRegistry',
+            'doctrine' => '?Doctrine\\Persistence\\ManagerRegistry',
             'form.factory' => '?Symfony\\Component\\Form\\FormFactoryInterface',
             'parameter_bag' => '?Symfony\\Component\\DependencyInjection\\ParameterBag\\ContainerBagInterface',
             'message_bus' => '?Symfony\\Component\\Messenger\\MessageBusInterface',
@@ -68,7 +69,7 @@ class AbstractControllerTest extends ControllerTraitTest
 
     public function testMissingParameterBag()
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException');
+        $this->expectException(ServiceNotFoundException::class);
         $this->expectExceptionMessage('TestAbstractController::getParameter()" method is missing a parameter bag');
         $container = new Container();
 
@@ -81,8 +82,6 @@ class AbstractControllerTest extends ControllerTraitTest
 
 class TestAbstractController extends AbstractController
 {
-    use TestControllerTrait;
-
     private $throwOnUnexpectedService;
 
     public function __construct($throwOnUnexpectedService = true)
@@ -90,7 +89,12 @@ class TestAbstractController extends AbstractController
         $this->throwOnUnexpectedService = $throwOnUnexpectedService;
     }
 
-    public function setContainer(ContainerInterface $container)
+    public function __call(string $method, array $arguments)
+    {
+        return $this->$method(...$arguments);
+    }
+
+    public function setContainer(ContainerInterface $container): ?ContainerInterface
     {
         if (!$this->throwOnUnexpectedService) {
             return parent::setContainer($container);
@@ -103,20 +107,15 @@ class TestAbstractController extends AbstractController
                 continue;
             }
             if (!isset($expected[$id])) {
-                throw new \UnexpectedValueException(sprintf('Service "%s" is not expected, as declared by %s::getSubscribedServices()', $id, AbstractController::class));
+                throw new \UnexpectedValueException(sprintf('Service "%s" is not expected, as declared by "%s::getSubscribedServices()".', $id, AbstractController::class));
             }
             $type = substr($expected[$id], 1);
             if (!$container->get($id) instanceof $type) {
-                throw new \UnexpectedValueException(sprintf('Service "%s" is expected to be an instance of "%s", as declared by %s::getSubscribedServices()', $id, $type, AbstractController::class));
+                throw new \UnexpectedValueException(sprintf('Service "%s" is expected to be an instance of "%s", as declared by "%s::getSubscribedServices()".', $id, $type, AbstractController::class));
             }
         }
 
         return parent::setContainer($container);
-    }
-
-    public function getParameter(string $name)
-    {
-        return parent::getParameter($name);
     }
 
     public function fooAction()

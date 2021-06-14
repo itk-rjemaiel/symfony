@@ -18,6 +18,12 @@ use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel;
+use Symfony\Component\HttpKernel\Bundle\BundleInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
+use Symfony\Component\Translation\Extractor\ExtractorInterface;
+use Symfony\Component\Translation\Reader\TranslationReader;
+use Symfony\Component\Translation\Translator;
+use Symfony\Component\Translation\Writer\TranslationWriter;
 
 class TranslationUpdateCommandTest extends TestCase
 {
@@ -28,8 +34,39 @@ class TranslationUpdateCommandTest extends TestCase
     {
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true]);
-        $this->assertRegExp('/foo/', $tester->getDisplay());
-        $this->assertRegExp('/1 message was successfully extracted/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/foo/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/1 message was successfully extracted/', $tester->getDisplay());
+    }
+
+    public function testDumpSortedMessagesAndClean()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']]);
+        $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true, '--sort' => 'asc']);
+        $this->assertMatchesRegularExpression("/\*bar\*foo\*test/", preg_replace('/\s+/', '', $tester->getDisplay()));
+        $this->assertMatchesRegularExpression('/3 messages were successfully extracted/', $tester->getDisplay());
+    }
+
+    public function testDumpReverseSortedMessagesAndClean()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']]);
+        $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true, '--sort' => 'desc']);
+        $this->assertMatchesRegularExpression("/\*test\*foo\*bar/", preg_replace('/\s+/', '', $tester->getDisplay()));
+        $this->assertMatchesRegularExpression('/3 messages were successfully extracted/', $tester->getDisplay());
+    }
+
+    public function testDumpSortWithoutValueAndClean()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']]);
+        $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true, '--sort']);
+        $this->assertMatchesRegularExpression("/\*bar\*foo\*test/", preg_replace('/\s+/', '', $tester->getDisplay()));
+        $this->assertMatchesRegularExpression('/3 messages were successfully extracted/', $tester->getDisplay());
+    }
+
+    public function testDumpWrongSortAndClean()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']]);
+        $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true, '--sort' => 'test']);
+        $this->assertMatchesRegularExpression('/\[ERROR\] Wrong sort order/', $tester->getDisplay());
     }
 
     public function testDumpMessagesAndCleanInRootDirectory()
@@ -41,32 +78,32 @@ class TranslationUpdateCommandTest extends TestCase
 
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']], [], null, [$this->translationDir.'/trans'], [$this->translationDir.'/views']);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', '--dump-messages' => true, '--clean' => true]);
-        $this->assertRegExp('/foo/', $tester->getDisplay());
-        $this->assertRegExp('/1 message was successfully extracted/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/foo/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/1 message was successfully extracted/', $tester->getDisplay());
     }
 
     public function testDumpTwoMessagesAndClean()
     {
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'bar' => 'bar']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true]);
-        $this->assertRegExp('/foo/', $tester->getDisplay());
-        $this->assertRegExp('/bar/', $tester->getDisplay());
-        $this->assertRegExp('/2 messages were successfully extracted/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/foo/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/bar/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/2 messages were successfully extracted/', $tester->getDisplay());
     }
 
     public function testDumpMessagesForSpecificDomain()
     {
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo'], 'mydomain' => ['bar' => 'bar']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--dump-messages' => true, '--clean' => true, '--domain' => 'mydomain']);
-        $this->assertRegExp('/bar/', $tester->getDisplay());
-        $this->assertRegExp('/1 message was successfully extracted/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/bar/', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/1 message was successfully extracted/', $tester->getDisplay());
     }
 
     public function testWriteMessages()
     {
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--force' => true]);
-        $this->assertRegExp('/Translation files were successfully updated./', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
     }
 
     public function testWriteMessagesInRootDirectory()
@@ -78,7 +115,7 @@ class TranslationUpdateCommandTest extends TestCase
 
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', '--force' => true]);
-        $this->assertRegExp('/Translation files were successfully updated./', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
     }
 
     /**
@@ -95,14 +132,14 @@ class TranslationUpdateCommandTest extends TestCase
 
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', '--force' => true]);
-        $this->assertRegExp('/Translation files were successfully updated./', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
     }
 
     public function testWriteMessagesForSpecificDomain()
     {
         $tester = $this->createCommandTester(['messages' => ['foo' => 'foo'], 'mydomain' => ['bar' => 'bar']]);
         $tester->execute(['command' => 'translation:update', 'locale' => 'en', 'bundle' => 'foo', '--force' => true, '--domain' => 'mydomain']);
-        $this->assertRegExp('/Translation files were successfully updated./', $tester->getDisplay());
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
     }
 
     protected function setUp(): void
@@ -118,18 +155,18 @@ class TranslationUpdateCommandTest extends TestCase
         $this->fs->remove($this->translationDir);
     }
 
-    private function createCommandTester($extractedMessages = [], $loadedMessages = [], HttpKernel\KernelInterface $kernel = null, array $transPaths = [], array $viewsPaths = []): CommandTester
+    /**
+     * @return CommandTester
+     */
+    private function createCommandTester($extractedMessages = [], $loadedMessages = [], KernelInterface $kernel = null, array $transPaths = [], array $viewsPaths = [])
     {
-        $translator = $this->getMockBuilder('Symfony\Component\Translation\Translator')
-            ->disableOriginalConstructor()
-            ->getMock();
-
+        $translator = $this->createMock(Translator::class);
         $translator
             ->expects($this->any())
             ->method('getFallbackLocales')
             ->willReturn(['en']);
 
-        $extractor = $this->getMockBuilder('Symfony\Component\Translation\Extractor\ExtractorInterface')->getMock();
+        $extractor = $this->createMock(ExtractorInterface::class);
         $extractor
             ->expects($this->any())
             ->method('extract')
@@ -141,7 +178,7 @@ class TranslationUpdateCommandTest extends TestCase
                 }
             );
 
-        $loader = $this->getMockBuilder('Symfony\Component\Translation\Reader\TranslationReader')->getMock();
+        $loader = $this->createMock(TranslationReader::class);
         $loader
             ->expects($this->any())
             ->method('read')
@@ -151,7 +188,7 @@ class TranslationUpdateCommandTest extends TestCase
                 }
             );
 
-        $writer = $this->getMockBuilder('Symfony\Component\Translation\Writer\TranslationWriter')->getMock();
+        $writer = $this->createMock(TranslationWriter::class);
         $writer
             ->expects($this->any())
             ->method('getFormats')
@@ -170,7 +207,7 @@ class TranslationUpdateCommandTest extends TestCase
                     ['test', true, $this->getBundle('test')],
                 ];
             }
-            $kernel = $this->getMockBuilder('Symfony\Component\HttpKernel\KernelInterface')->getMock();
+            $kernel = $this->createMock(KernelInterface::class);
             $kernel
                 ->expects($this->any())
                 ->method('getBundle')
@@ -199,7 +236,7 @@ class TranslationUpdateCommandTest extends TestCase
 
     private function getBundle($path)
     {
-        $bundle = $this->getMockBuilder('Symfony\Component\HttpKernel\Bundle\BundleInterface')->getMock();
+        $bundle = $this->createMock(BundleInterface::class);
         $bundle
             ->expects($this->any())
             ->method('getPath')

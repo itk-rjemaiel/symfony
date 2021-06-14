@@ -35,6 +35,8 @@ class ArrayDenormalizer implements ContextAwareDenormalizerInterface, Serializer
      * {@inheritdoc}
      *
      * @throws NotNormalizableValueException
+     *
+     * @return array
      */
     public function denormalize($data, $type, $format = null, array $context = [])
     {
@@ -68,6 +70,10 @@ class ArrayDenormalizer implements ContextAwareDenormalizerInterface, Serializer
      */
     public function supportsDenormalization($data, $type, $format = null, array $context = []): bool
     {
+        if (null === $this->serializer) {
+            throw new BadMethodCallException(sprintf('The serializer needs to be set to allow "%s()" to be used.', __METHOD__));
+        }
+
         return '[]' === substr($type, -2)
             && $this->serializer->supportsDenormalization($data, substr($type, 0, -2), $format, $context);
     }

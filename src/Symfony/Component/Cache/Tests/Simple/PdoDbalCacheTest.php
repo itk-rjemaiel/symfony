@@ -14,7 +14,7 @@ namespace Symfony\Component\Cache\Tests\Simple;
 use Doctrine\DBAL\DriverManager;
 use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Simple\PdoCache;
-use Symfony\Component\Cache\Tests\Traits\PdoPruneableTrait;
+use Symfony\Component\Cache\Tests\Adapter\PdoPruneableTrait;
 
 /**
  * @group time-sensitive
@@ -43,7 +43,7 @@ class PdoDbalCacheTest extends CacheTestCase
         @unlink(self::$dbFile);
     }
 
-    public function createSimpleCache($defaultLifetime = 0): CacheInterface
+    public function createSimpleCache(int $defaultLifetime = 0): CacheInterface
     {
         return new PdoCache(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => self::$dbFile]), '', $defaultLifetime);
     }

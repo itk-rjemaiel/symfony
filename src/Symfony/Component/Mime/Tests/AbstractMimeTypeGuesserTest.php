@@ -27,6 +27,21 @@ abstract class AbstractMimeTypeGuesserTest extends TestCase
 
     abstract protected function getGuesser(): MimeTypeGuesserInterface;
 
+    public function testGuessWithLeadingDash()
+    {
+        if (!$this->getGuesser()->isGuesserSupported()) {
+            $this->markTestSkipped('Guesser is not supported');
+        }
+
+        $cwd = getcwd();
+        chdir(__DIR__.'/Fixtures/mimetypes');
+        try {
+            $this->assertEquals('image/gif', $this->getGuesser()->guessMimeType('-test'));
+        } finally {
+            chdir($cwd);
+        }
+    }
+
     public function testGuessImageWithoutExtension()
     {
         if (!$this->getGuesser()->isGuesserSupported()) {
@@ -42,7 +57,7 @@ abstract class AbstractMimeTypeGuesserTest extends TestCase
             $this->markTestSkipped('Guesser is not supported');
         }
 
-        $this->expectException('\InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->getGuesser()->guessMimeType(__DIR__.'/Fixtures/mimetypes/directory');
     }
 
@@ -64,13 +79,22 @@ abstract class AbstractMimeTypeGuesserTest extends TestCase
         $this->assertEquals('application/octet-stream', $this->getGuesser()->guessMimeType(__DIR__.'/Fixtures/mimetypes/.unknownextension'));
     }
 
+    public function testGuessWithDuplicatedFileType()
+    {
+        if (!$this->getGuesser()->isGuesserSupported()) {
+            $this->markTestSkipped('Guesser is not supported');
+        }
+
+        $this->assertEquals('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $this->getGuesser()->guessMimeType(__DIR__.'/Fixtures/test.docx'));
+    }
+
     public function testGuessWithIncorrectPath()
     {
         if (!$this->getGuesser()->isGuesserSupported()) {
             $this->markTestSkipped('Guesser is not supported');
         }
 
-        $this->expectException('\InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->getGuesser()->guessMimeType(__DIR__.'/Fixtures/mimetypes/not_here');
     }
 
@@ -93,7 +117,7 @@ abstract class AbstractMimeTypeGuesserTest extends TestCase
         @chmod($path, 0333);
 
         if ('0333' == substr(sprintf('%o', fileperms($path)), -4)) {
-            $this->expectException('\InvalidArgumentException');
+            $this->expectException(\InvalidArgumentException::class);
             $this->getGuesser()->guessMimeType($path);
         } else {
             $this->markTestSkipped('Can not verify chmod operations, change of file permissions failed');

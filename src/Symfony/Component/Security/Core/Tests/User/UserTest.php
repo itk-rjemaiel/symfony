@@ -20,7 +20,7 @@ class UserTest extends TestCase
 {
     public function testConstructorException()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         new User('', 'superpass');
     }
 
@@ -117,8 +117,8 @@ class UserTest extends TestCase
     {
         return [
             [true, new User('username', 'password'), new User('username', 'password')],
-            [true, new User('username', 'password', ['ROLE']), new User('username', 'password')],
-            [true, new User('username', 'password', ['ROLE']), new User('username', 'password', ['NO ROLE'])],
+            [false, new User('username', 'password', ['ROLE']), new User('username', 'password')],
+            [false, new User('username', 'password', ['ROLE']), new User('username', 'password', ['NO ROLE'])],
             [false, new User('diff', 'diff'), new User('username', 'password')],
             [false, new User('diff', 'diff', [], false), new User('username', 'password')],
             [false, new User('diff', 'diff', [], false, false), new User('username', 'password')],
@@ -130,6 +130,6 @@ class UserTest extends TestCase
     public function testIsEqualToWithDifferentUser()
     {
         $user = new User('username', 'password');
-        $this->assertFalse($user->isEqualTo($this->getMockBuilder(UserInterface::class)->getMock()));
+        $this->assertFalse($user->isEqualTo($this->createMock(UserInterface::class)));
     }
 }

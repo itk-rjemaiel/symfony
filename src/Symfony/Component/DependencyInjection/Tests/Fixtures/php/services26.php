@@ -18,14 +18,9 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
 {
     private $parameters = [];
-    private $targetDirs = [];
 
     public function __construct()
     {
-        $dir = __DIR__;
-        for ($i = 1; $i <= 5; ++$i) {
-            $this->targetDirs[$i] = $dir = \dirname($dir);
-        }
         $this->parameters = $this->getDefaultParameters();
 
         $this->services = $this->privates = [];
@@ -75,6 +70,9 @@ class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
         return $this->services['test'] = new ${($_ = $this->getEnv('FOO')) && false ?: "_"}($this->getEnv('Bar'), 'foo'.$this->getEnv('string:FOO').'baz', $this->getEnv('int:Baz'));
     }
 
+    /**
+     * @return array|bool|float|int|string|null
+     */
     public function getParameter($name)
     {
         $name = (string) $name;
@@ -119,7 +117,6 @@ class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
         'baz' => false,
         'json' => false,
         'db_dsn' => false,
-        'env(json_file)' => false,
     ];
     private $dynamicParameters = [];
 
@@ -130,7 +127,6 @@ class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
             case 'baz': $value = $this->getEnv('int:Baz'); break;
             case 'json': $value = $this->getEnv('json:file:json_file'); break;
             case 'db_dsn': $value = $this->getEnv('resolve:DB'); break;
-            case 'env(json_file)': $value = ($this->targetDirs[1].'/array.json'); break;
             default: throw new InvalidArgumentException(sprintf('The dynamic parameter "%s" must be defined.', $name));
         }
         $this->loadedDynamicParameters[$name] = true;
@@ -144,6 +140,7 @@ class Symfony_DI_PhpDumper_Test_EnvParameters extends Container
             'project_dir' => '/foo/bar',
             'env(FOO)' => 'foo',
             'env(DB)' => 'sqlite://%project_dir%/var/data.db',
+            'env(json_file)' => (\dirname(__DIR__, 1).'/array.json'),
         ];
     }
 }

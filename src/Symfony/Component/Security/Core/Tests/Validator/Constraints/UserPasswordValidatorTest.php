@@ -11,11 +11,15 @@
 
 namespace Symfony\Component\Security\Core\Tests\Validator\Constraints;
 
+use Foo\Bar\User;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
 use Symfony\Component\Security\Core\Encoder\PasswordEncoderInterface;
+use Symfony\Component\Security\Core\Tests\Fixtures\TokenInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\Validator\Constraints\UserPassword;
 use Symfony\Component\Security\Core\Validator\Constraints\UserPasswordValidator;
+use Symfony\Component\Validator\Exception\ConstraintDefinitionException;
 use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
 
 /**
@@ -23,8 +27,8 @@ use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
  */
 abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
 {
-    const PASSWORD = 's3Cr3t';
-    const SALT = '^S4lt$';
+    private const PASSWORD = 's3Cr3t';
+    private const SALT = '^S4lt$';
 
     /**
      * @var TokenStorageInterface
@@ -50,7 +54,7 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
     {
         $user = $this->createUser();
         $this->tokenStorage = $this->createTokenStorage($user);
-        $this->encoder = $this->createPasswordEncoder();
+        $this->encoder = $this->createMock(PasswordEncoderInterface::class);
         $this->encoderFactory = $this->createEncoderFactory($this->encoder);
 
         parent::setUp();
@@ -114,8 +118,8 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
 
     public function testUserIsNotValid()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
-        $user = $this->getMockBuilder('Foo\Bar\User')->getMock();
+        $this->expectException(ConstraintDefinitionException::class);
+        $user = $this->createMock(User::class);
 
         $this->tokenStorage = $this->createTokenStorage($user);
         $this->validator = $this->createValidator();
@@ -126,7 +130,7 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
 
     protected function createUser()
     {
-        $mock = $this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock();
+        $mock = $this->createMock(UserInterface::class);
 
         $mock
             ->expects($this->any())
@@ -143,14 +147,9 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
         return $mock;
     }
 
-    protected function createPasswordEncoder($isPasswordValid = true)
-    {
-        return $this->getMockBuilder('Symfony\Component\Security\Core\Encoder\PasswordEncoderInterface')->getMock();
-    }
-
     protected function createEncoderFactory($encoder = null)
     {
-        $mock = $this->getMockBuilder('Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface')->getMock();
+        $mock = $this->createMock(EncoderFactoryInterface::class);
 
         $mock
             ->expects($this->any())
@@ -165,7 +164,7 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
     {
         $token = $this->createAuthenticationToken($user);
 
-        $mock = $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface')->getMock();
+        $mock = $this->createMock(TokenStorageInterface::class);
         $mock
             ->expects($this->any())
             ->method('getToken')
@@ -177,7 +176,7 @@ abstract class UserPasswordValidatorTest extends ConstraintValidatorTestCase
 
     protected function createAuthenticationToken($user = null)
     {
-        $mock = $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock();
+        $mock = $this->createMock(TokenInterface::class);
         $mock
             ->expects($this->any())
             ->method('getUser')

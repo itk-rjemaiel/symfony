@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Templating;
 use Symfony\Bundle\FrameworkBundle\Templating\TemplateNameParser;
 use Symfony\Bundle\FrameworkBundle\Templating\TemplateReference;
 use Symfony\Bundle\FrameworkBundle\Tests\TestCase;
+use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Templating\TemplateReference as BaseTemplateReference;
 
 /**
@@ -25,7 +26,7 @@ class TemplateNameParserTest extends TestCase
 
     protected function setUp(): void
     {
-        $kernel = $this->getMockBuilder('Symfony\Component\HttpKernel\KernelInterface')->getMock();
+        $kernel = $this->createMock(KernelInterface::class);
         $kernel
             ->expects($this->any())
             ->method('getBundle')
@@ -79,7 +80,7 @@ class TemplateNameParserTest extends TestCase
 
     public function testParseValidNameWithNotFoundBundle()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->parser->parse('BarBundle:Post:index.html.php');
     }
 }

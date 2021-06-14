@@ -20,8 +20,8 @@ use Symfony\Component\HttpFoundation\Session\Storage\Handler\MemcachedSessionHan
  */
 class MemcachedSessionHandlerTest extends TestCase
 {
-    const PREFIX = 'prefix_';
-    const TTL = 1000;
+    private const PREFIX = 'prefix_';
+    private const TTL = 1000;
 
     /**
      * @var MemcachedSessionHandler
@@ -38,7 +38,7 @@ class MemcachedSessionHandlerTest extends TestCase
             $this->markTestSkipped('Tests can only be run with memcached extension 2.1.0 or lower, or 3.0.0b1 or higher');
         }
 
-        $this->memcached = $this->getMockBuilder('Memcached')->getMock();
+        $this->memcached = $this->createMock(\Memcached::class);
         $this->storage = new MemcachedSessionHandler(
             $this->memcached,
             ['prefix' => self::PREFIX, 'expiretime' => self::TTL]
@@ -136,6 +136,6 @@ class MemcachedSessionHandlerTest extends TestCase
         $method = new \ReflectionMethod($this->storage, 'getMemcached');
         $method->setAccessible(true);
 
-        $this->assertInstanceOf('\Memcached', $method->invoke($this->storage));
+        $this->assertInstanceOf(\Memcached::class, $method->invoke($this->storage));
     }
 }

@@ -132,9 +132,15 @@
 {% endblock %}
 
 {% block form_widget_simple -%}
-    {% if type is not defined or type != 'hidden' %}
-        {%- set attr = attr|merge({class: (attr.class|default('') ~ (type|default('') == 'file' ? ' custom-file-input' : ' form-control'))|trim}) -%}
-    {% endif %}
+    {%- if type is not defined or type != 'hidden' -%}
+        {%- set className = ' form-control' -%}
+        {%- if type|default('') == 'file' -%}
+            {%- set className = ' custom-file-input' -%}
+        {%- elseif type|default('') == 'range' -%}
+            {%- set className = ' form-control-range' -%}
+        {%- endif -%}
+        {%- set attr = attr|merge({class: (attr.class|default('') ~ className)|trim}) -%}
+    {%- endif -%}
     {%- if type is defined and (type == 'range' or type == 'color') %}
         {# Attribute "required" is not supported #}
         {%- set required = false -%}
@@ -142,12 +148,12 @@
     {{- parent() -}}
 {%- endblock form_widget_simple %}
 
-{%- block widget_attributes -%}
-    {%- if not valid %}
+{% block widget_attributes -%}
+    {%- if not valid -%}
         {% set attr = attr|merge({class: (attr.class|default('') ~ ' is-invalid')|trim}) %}
-    {% endif -%}
+    {%- endif -%}
     {{ parent() }}
-{%- endblock widget_attributes -%}
+{%- endblock widget_attributes %}
 
 {% block button_widget -%}
     {%- set attr = attr|merge({class: (attr.class|default('btn-secondary') ~ ' btn')|trim}) -%}
@@ -164,6 +170,11 @@
     {%- if 'checkbox-custom' in parent_label_class -%}
         {%- set attr = attr|merge({class: (attr.class|default('') ~ ' custom-control-input')|trim}) -%}
         <div class="custom-control custom-checkbox{{ 'checkbox-inline' in parent_label_class ? ' custom-control-inline' }}">
+            {{- form_label(form, null, { widget: parent() }) -}}
+        </div>
+    {%- elseif 'switch-custom' in parent_label_class -%}
+        {%- set attr = attr|merge({class: (attr.class|default('') ~ ' custom-control-input')|trim}) -%}
+        <div class="custom-control custom-switch{{ 'switch-inline' in parent_label_class ? ' custom-control-inline' }}">
             {{- form_label(form, null, { widget: parent() }) -}}
         </div>
     {%- else -%}
@@ -237,8 +248,8 @@
 {% block checkbox_radio_label -%}
     {#- Do not display the label if widget is not defined in order to prevent double label rendering -#}
     {%- if widget is defined -%}
-        {% set is_parent_custom = parent_label_class is defined and ('checkbox-custom' in parent_label_class or 'radio-custom' in parent_label_class) %}
-        {% set is_custom = label_attr.class is defined and ('checkbox-custom' in label_attr.class or 'radio-custom' in label_attr.class) %}
+        {% set is_parent_custom = parent_label_class is defined and ('checkbox-custom' in parent_label_class or 'radio-custom' in parent_label_class or 'switch-custom' in parent_label_class) %}
+        {% set is_custom = label_attr.class is defined and ('checkbox-custom' in label_attr.class or 'radio-custom' in label_attr.class or 'switch-custom' in label_attr.class) %}
         {%- if is_parent_custom or is_custom -%}
             {%- set label_attr = label_attr|merge({class: (label_attr.class|default('') ~ ' custom-control-label')|trim}) -%}
         {%- else %}
@@ -282,7 +293,7 @@
     {%- if help is not empty -%}
         {%- set widget_attr = {attr: {'aria-describedby': id ~"_help"}} -%}
     {%- endif -%}
-    <{{ element|default('div') }} class="form-group">
+    <{{ element|default('div') }}{% with {attr: row_attr|merge({class: (row_attr.class|default('') ~ ' form-group')|trim})} %}{{ block('attributes') }}{% endwith %}>
         {{- form_label(form) -}}
         {{- form_widget(form, widget_attr) -}}
         {{- form_help(form) -}}

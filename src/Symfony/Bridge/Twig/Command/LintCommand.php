@@ -48,16 +48,17 @@ class LintCommand extends Command
     protected function configure()
     {
         $this
-            ->setDescription('Lints a template and outputs encountered errors')
+            ->setDescription('Lint a template and outputs encountered errors')
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'The output format', 'txt')
-            ->addArgument('filename', InputArgument::IS_ARRAY)
+            ->addOption('show-deprecations', null, InputOption::VALUE_NONE, 'Show deprecations as errors')
+            ->addArgument('filename', InputArgument::IS_ARRAY, 'A file, a directory or "-" for reading from STDIN')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> command lints a template and outputs to STDOUT
 the first encountered syntax error.
 
 You can validate the syntax of contents passed from STDIN:
 
-  <info>cat filename | php %command.full_name%</info>
+  <info>cat filename | php %command.full_name% -</info>
 
 Or the syntax of a file:
 
@@ -77,15 +78,18 @@ EOF
     {
         $io = new SymfonyStyle($input, $output);
         $filenames = $input->getArgument('filename');
+        $showDeprecations = $input->getOption('show-deprecations');
 
-        if (0 === \count($filenames)) {
-            if (0 === ftell(STDIN)) {
-                $template = '';
-                while (!feof(STDIN)) {
-                    $template .= fread(STDIN, 1024);
-                }
+        if (['-'] === $filenames) {
+            return $this->display($input, $output, $io, [$this->validate(file_get_contents('php://stdin'), uniqid('sf_', true))]);
+        }
 
-                return $this->display($input, $output, $io, [$this->validate($template, uniqid('sf_', true))]);
+        if (!$filenames) {
+            // @deprecated to be removed in 5.0
+            if (0 === ftell(\STDIN)) {
+                @trigger_error('Piping content from STDIN to the "lint:twig" command without passing the dash symbol "-" as argument is deprecated since Symfony 4.4.', \E_USER_DEPRECATED);
+
+                return $this->display($input, $output, $io, [$this->validate(file_get_contents('php://stdin'), uniqid('sf_', true))]);
             }
 
             $loader = $this->twig->getLoader();
@@ -97,17 +101,38 @@ EOF
                 $filenames = array_merge(...$paths);
             }
 
-            if (0 === \count($filenames)) {
+            if (!$filenames) {
                 throw new RuntimeException('Please provide a filename or pipe template content to STDIN.');
             }
         }
 
-        $filesInfo = $this->getFilesInfo($filenames);
+        if ($showDeprecations) {
+            $prevErrorHandler = set_error_handler(static function ($level, $message, $file, $line) use (&$prevErrorHandler) {
+                if (\E_USER_DEPRECATED === $level) {
+                    $templateLine = 0;
+                    if (preg_match('/ at line (\d+)[ .]/', $message, $matches)) {
+                        $templateLine = $matches[1];
+                    }
+
+                    throw new Error($message, $templateLine);
+                }
+
+                return $prevErrorHandler ? $prevErrorHandler($level, $message, $file, $line) : false;
+            });
+        }
+
+        try {
+            $filesInfo = $this->getFilesInfo($filenames);
+        } finally {
+            if ($showDeprecations) {
+                restore_error_handler();
+            }
+        }
 
         return $this->display($input, $output, $io, $filesInfo);
     }
 
-    private function getFilesInfo(array $filenames)
+    private function getFilesInfo(array $filenames): array
     {
         $filesInfo = [];
         foreach ($filenames as $filename) {
@@ -127,7 +152,7 @@ EOF
             return Finder::create()->files()->in($filename)->name('*.twig');
         }
 
-        throw new RuntimeException(sprintf('File or directory "%s" is not readable', $filename));
+        throw new RuntimeException(sprintf('File or directory "%s" is not readable.', $filename));
     }
 
     private function validate(string $template, string $file): array
@@ -196,12 +221,12 @@ EOF
             }
         });
 
-        $output->writeln(json_encode($filesInfo, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $output->writeln(json_encode($filesInfo, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
 
         return min($errors, 1);
     }
 
-    private function renderException(OutputInterface $output, string $template, Error $exception, string $file = null)
+    private function renderException(SymfonyStyle $output, string $template, Error $exception, string $file = null)
     {
         $line = $exception->getTemplateLine();
 
@@ -209,6 +234,14 @@ EOF
             $output->text(sprintf('<error> ERROR </error> in %s (line %s)', $file, $line));
         } else {
             $output->text(sprintf('<error> ERROR </error> (line %s)', $line));
+        }
+
+        // If the line is not known (this might happen for deprecations if we fail at detecting the line for instance),
+        // we render the message without context, to ensure the message is displayed.
+        if ($line <= 0) {
+            $output->text(sprintf('<error> >> %s</error> ', $exception->getRawMessage()));
+
+            return;
         }
 
         foreach ($this->getContext($template, $line) as $lineNumber => $code) {

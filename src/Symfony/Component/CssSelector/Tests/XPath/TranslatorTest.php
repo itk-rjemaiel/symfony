@@ -12,6 +12,7 @@
 namespace Symfony\Component\CssSelector\Tests\XPath;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\CssSelector\Exception\ExpressionErrorException;
 use Symfony\Component\CssSelector\Node\ElementNode;
 use Symfony\Component\CssSelector\Node\FunctionNode;
 use Symfony\Component\CssSelector\Parser\Parser;
@@ -37,7 +38,7 @@ class TranslatorTest extends TestCase
 
     public function testCssToXPathPseudoElement()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $translator->cssToXPath('e::first-line');
@@ -45,7 +46,7 @@ class TranslatorTest extends TestCase
 
     public function testGetExtensionNotExistsExtension()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $translator->getExtension('fake');
@@ -53,7 +54,7 @@ class TranslatorTest extends TestCase
 
     public function testAddCombinationNotExistsExtension()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $parser = new Parser();
@@ -64,7 +65,7 @@ class TranslatorTest extends TestCase
 
     public function testAddFunctionNotExistsFunction()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $xpath = new XPathExpr();
@@ -74,7 +75,7 @@ class TranslatorTest extends TestCase
 
     public function testAddPseudoClassNotExistsClass()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $xpath = new XPathExpr();
@@ -83,7 +84,7 @@ class TranslatorTest extends TestCase
 
     public function testAddAttributeMatchingClassNotExistsClass()
     {
-        $this->expectException('Symfony\Component\CssSelector\Exception\ExpressionErrorException');
+        $this->expectException(ExpressionErrorException::class);
         $translator = new Translator();
         $translator->registerExtension(new HtmlExtension($translator));
         $xpath = new XPathExpr();
@@ -98,7 +99,7 @@ class TranslatorTest extends TestCase
         $elements = $document->xpath($translator->cssToXPath($css));
         $this->assertCount(\count($elementsId), $elements);
         foreach ($elements as $element) {
-            $this->assertTrue(\in_array($element->attributes()->id, $elementsId));
+            $this->assertContains((string) $element->attributes()->id, $elementsId);
         }
     }
 
@@ -116,7 +117,7 @@ class TranslatorTest extends TestCase
         $this->assertCount(\count($elementsId), $elementsId);
         foreach ($elements as $element) {
             if (null !== $element->attributes()->id) {
-                $this->assertTrue(\in_array($element->attributes()->id, $elementsId));
+                $this->assertContains((string) $element->attributes()->id, $elementsId);
             }
         }
         libxml_clear_errors();
@@ -135,6 +136,33 @@ class TranslatorTest extends TestCase
         $bodies = $document->xpath('//body');
         $elements = $bodies[0]->xpath($translator->cssToXPath($css));
         $this->assertCount($count, $elements);
+    }
+
+    public function testOnlyOfTypeFindsSingleChildrenOfGivenType()
+    {
+        $translator = new Translator();
+        $translator->registerExtension(new HtmlExtension($translator));
+        $document = new \DOMDocument();
+        $document->loadHTML(<<<'HTML'
+<html>
+  <body>
+    <p>
+      <span>A</span>
+    </p>
+    <p>
+      <span>B</span>
+      <span>C</span>
+    </p>
+  </body>
+</html>
+HTML
+);
+
+        $xpath = new \DOMXPath($document);
+        $nodeList = $xpath->query($translator->cssToXPath('span:only-of-type'));
+
+        $this->assertSame(1, $nodeList->length);
+        $this->assertSame('A', $nodeList->item(0)->textContent);
     }
 
     public function getXpathLiteralTestData()
@@ -175,7 +203,7 @@ class TranslatorTest extends TestCase
             ['e:first-of-type', '*/e[position() = 1]'],
             ['e:last-of-type', '*/e[position() = last()]'],
             ['e:only-child', "*/*[(name() = 'e') and (last() = 1)]"],
-            ['e:only-of-type', 'e[last() = 1]'],
+            ['e:only-of-type', 'e[count(preceding-sibling::e)=0 and count(following-sibling::e)=0]'],
             ['e:empty', 'e[not(*) and not(string-length())]'],
             ['e:EmPTY', 'e[not(*) and not(string-length())]'],
             ['e:root', 'e[not(parent::*)]'],
@@ -281,6 +309,8 @@ class TranslatorTest extends TestCase
             ['li div:only-child', ['li-div']],
             ['div *:only-child', ['li-div', 'foobar-span']],
             ['p:only-of-type', ['paragraph']],
+            [':only-of-type', ['html', 'li-div', 'foobar-span', 'paragraph']],
+            ['div#foobar-div :only-of-type', ['foobar-span']],
             ['a:empty', ['name-anchor']],
             ['a:EMpty', ['name-anchor']],
             ['li:empty', ['third-li', 'fourth-li', 'fifth-li', 'sixth-li']],

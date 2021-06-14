@@ -57,7 +57,7 @@ class RouterDebugCommand extends Command
                 new InputOption('format', null, InputOption::VALUE_REQUIRED, 'The output format (txt, xml, json, or md)', 'txt'),
                 new InputOption('raw', null, InputOption::VALUE_NONE, 'To output raw route(s)'),
             ])
-            ->setDescription('Displays current routes for an application')
+            ->setDescription('Display current routes for an application')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> displays the configured routes:
 
@@ -73,7 +73,7 @@ EOF
      *
      * @throws InvalidArgumentException When route does not exist
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $name = $input->getArgument('name');
@@ -105,6 +105,8 @@ EOF
                 'output' => $io,
             ]);
         }
+
+        return 0;
     }
 
     private function findRouteNameContaining(string $name, RouteCollection $routes): array

@@ -33,6 +33,7 @@ use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 
 /**
  * @requires extension amqp
+ * @group integration
  */
 class AmqpExtIntegrationTest extends TestCase
 {
@@ -95,7 +96,7 @@ class AmqpExtIntegrationTest extends TestCase
         $envelope = $envelopes[0];
         $newEnvelope = $envelope
             ->with(new DelayStamp(2000))
-            ->with(new RedeliveryStamp(1, 'not_important'));
+            ->with(new RedeliveryStamp(1));
         $sender->send($newEnvelope);
         $receiver->ack($envelope);
 
@@ -160,6 +161,9 @@ class AmqpExtIntegrationTest extends TestCase
         $signalTime = microtime(true);
         $timedOutTime = time() + 10;
 
+        // wait for worker started and registered the signal handler
+        usleep(100 * 1000); // 100ms
+
         // immediately after the process has started "booted", kill it
         $process->signal(15);
 
@@ -174,7 +178,8 @@ class AmqpExtIntegrationTest extends TestCase
 Get envelope with message: Symfony\Component\Messenger\Tests\Fixtures\DummyMessage
 with stamps: [
     "Symfony\\Component\\Messenger\\Transport\\AmqpExt\\AmqpReceivedStamp",
-    "Symfony\\Component\\Messenger\\Stamp\\ReceivedStamp"
+    "Symfony\\Component\\Messenger\\Stamp\\ReceivedStamp",
+    "Symfony\\Component\\Messenger\\Stamp\\ConsumedByWorkerStamp"
 ]
 Done.
 

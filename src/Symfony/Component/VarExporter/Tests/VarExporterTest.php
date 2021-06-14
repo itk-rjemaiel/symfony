@@ -13,7 +13,10 @@ namespace Symfony\Component\VarExporter\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\VarDumper\Test\VarDumperTestTrait;
+use Symfony\Component\VarExporter\Exception\ClassNotFoundException;
+use Symfony\Component\VarExporter\Exception\NotInstantiableTypeException;
 use Symfony\Component\VarExporter\Internal\Registry;
+use Symfony\Component\VarExporter\Tests\Fixtures\FooUnitEnum;
 use Symfony\Component\VarExporter\VarExporter;
 
 class VarExporterTest extends TestCase
@@ -22,7 +25,7 @@ class VarExporterTest extends TestCase
 
     public function testPhpIncompleteClassesAreForbidden()
     {
-        $this->expectException('Symfony\Component\VarExporter\Exception\ClassNotFoundException');
+        $this->expectException(ClassNotFoundException::class);
         $this->expectExceptionMessage('Class "SomeNotExistingClass" not found.');
         $unserializeCallback = ini_set('unserialize_callback_func', 'var_dump');
         try {
@@ -37,8 +40,8 @@ class VarExporterTest extends TestCase
      */
     public function testFailingSerialization($value)
     {
-        $this->expectException('Symfony\Component\VarExporter\Exception\NotInstantiableTypeException');
-        $this->expectExceptionMessageRegExp('/Type ".*" is not instantiable\./');
+        $this->expectException(NotInstantiableTypeException::class);
+        $this->expectExceptionMessageMatches('/Type ".*" is not instantiable\./');
         $expectedDump = $this->getDump($value);
         try {
             VarExporter::export($value);
@@ -50,7 +53,7 @@ class VarExporterTest extends TestCase
     public function provideFailingSerialization()
     {
         yield [hash_init('md5')];
-        yield [new \ReflectionClass('stdClass')];
+        yield [new \ReflectionClass(\stdClass::class)];
         yield [(new \ReflectionFunction(function (): int {}))->getReturnType()];
         yield [new \ReflectionGenerator((function () { yield 123; })())];
         yield [function () {}];
@@ -87,10 +90,12 @@ class VarExporterTest extends TestCase
         $dump = "<?php\n\nreturn ".$marshalledValue.";\n";
         $dump = str_replace(var_export(__FILE__, true), "\\dirname(__DIR__).\\DIRECTORY_SEPARATOR.'VarExporterTest.php'", $dump);
 
-        if (\PHP_VERSION_ID < 70400 && \in_array($testName, ['array-object', 'array-iterator', 'array-object-custom', 'spl-object-storage', 'final-array-iterator', 'final-error'], true)) {
+        if (\PHP_VERSION_ID >= 70406 || !\in_array($testName, ['array-object', 'array-iterator', 'array-object-custom', 'spl-object-storage', 'final-array-iterator', 'final-error'], true)) {
+            $fixtureFile = __DIR__.'/Fixtures/'.$testName.'.php';
+        } elseif (\PHP_VERSION_ID < 70400) {
             $fixtureFile = __DIR__.'/Fixtures/'.$testName.'-legacy.php';
         } else {
-            $fixtureFile = __DIR__.'/Fixtures/'.$testName.'.php';
+            $this->markTestSkipped('PHP >= 7.4.6 required.');
         }
         $this->assertStringEqualsFile($fixtureFile, $dump);
 
@@ -112,6 +117,7 @@ class VarExporterTest extends TestCase
     public function provideExport()
     {
         yield ['multiline-string', ["\0\0\r\nA" => "B\rC\n\n"], true];
+        yield ['lf-ending-string', "'BOOM'\n.var_dump(123)//'", true];
 
         yield ['bool', true, true];
         yield ['simple-array', [123, ['abc']], true];
@@ -170,11 +176,11 @@ class VarExporterTest extends TestCase
 
         $value = new \Error();
 
-        $rt = new \ReflectionProperty('Error', 'trace');
+        $rt = new \ReflectionProperty(\Error::class, 'trace');
         $rt->setAccessible(true);
         $rt->setValue($value, ['file' => __FILE__, 'line' => 123]);
 
-        $rl = new \ReflectionProperty('Error', 'line');
+        $rl = new \ReflectionProperty(\Error::class, 'line');
         $rl->setAccessible(true);
         $rl->setValue($value, 234);
 
@@ -204,6 +210,10 @@ class VarExporterTest extends TestCase
         yield ['private-constructor', PrivateConstructor::create('bar')];
 
         yield ['php74-serializable', new Php74Serializable()];
+
+        if (\PHP_VERSION_ID >= 80100) {
+            yield ['unit-enum', [FooUnitEnum::Bar], true];
+        }
     }
 }
 
@@ -335,7 +345,7 @@ final class FinalArrayIterator extends \ArrayIterator
         if ('' === $data) {
             throw new \InvalidArgumentException('Serialized data is empty.');
         }
-        list(, $data) = unserialize($data);
+        [, $data] = unserialize($data);
         parent::unserialize($data);
     }
 }
@@ -389,7 +399,7 @@ class FooSerializable implements \Serializable
 
     public function unserialize($str)
     {
-        list($this->foo) = unserialize($str);
+        [$this->foo] = unserialize($str);
     }
 }
 
@@ -402,7 +412,7 @@ class Php74Serializable implements \Serializable
 
     public function __unserialize(array $data)
     {
-        list($this->foo) = $data;
+        [$this->foo] = $data;
     }
 
     public function __sleep(): array

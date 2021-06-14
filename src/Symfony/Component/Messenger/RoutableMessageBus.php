@@ -37,7 +37,7 @@ class RoutableMessageBus implements MessageBusInterface
     public function dispatch($envelope, array $stamps = []): Envelope
     {
         if (!$envelope instanceof Envelope) {
-            throw new InvalidArgumentException('Messages passed to RoutableMessageBus::dispatch() must be inside an Envelope');
+            throw new InvalidArgumentException('Messages passed to RoutableMessageBus::dispatch() must be inside an Envelope.');
         }
 
         /** @var BusNameStamp|null $busNameStamp */
@@ -45,7 +45,7 @@ class RoutableMessageBus implements MessageBusInterface
 
         if (null === $busNameStamp) {
             if (null === $this->fallbackBus) {
-                throw new InvalidArgumentException(sprintf('Envelope is missing a BusNameStamp and no fallback message bus is configured on RoutableMessageBus.'));
+                throw new InvalidArgumentException('Envelope is missing a BusNameStamp and no fallback message bus is configured on RoutableMessageBus.');
             }
 
             return $this->fallbackBus->dispatch($envelope, $stamps);

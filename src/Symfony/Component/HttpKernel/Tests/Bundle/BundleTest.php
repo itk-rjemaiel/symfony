@@ -28,12 +28,9 @@ class BundleTest extends TestCase
         );
     }
 
-    /**
-     * @group legacy
-     */
     public function testGetContainerExtensionWithInvalidClass()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('must implement Symfony\Component\DependencyInjection\Extension\ExtensionInterface');
         $bundle = new ExtensionNotValidBundle();
         $bundle->getContainerExtension();

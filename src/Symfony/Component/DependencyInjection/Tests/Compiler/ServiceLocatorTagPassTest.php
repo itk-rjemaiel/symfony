@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Argument\BoundArgument;
 use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition;
@@ -27,7 +28,7 @@ class ServiceLocatorTagPassTest extends TestCase
 {
     public function testNoServices()
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid definition for service "foo": an array of references is expected as first argument when the "container.service_locator" tag is set.');
         $container = new ContainerBuilder();
 
@@ -40,7 +41,7 @@ class ServiceLocatorTagPassTest extends TestCase
 
     public function testInvalidServices()
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid definition for service "foo": an array of references is expected as first argument when the "container.service_locator" tag is set, "string" found for key "0".');
         $container = new ContainerBuilder();
 
@@ -114,6 +115,7 @@ class ServiceLocatorTagPassTest extends TestCase
             ->setArguments([[
                 'bar' => new Reference('baz'),
                 new Reference('bar'),
+                16 => new Reference('baz'),
             ]])
             ->addTag('container.service_locator')
         ;
@@ -124,6 +126,7 @@ class ServiceLocatorTagPassTest extends TestCase
         $locator = $container->get('foo');
 
         $this->assertSame(TestDefinition1::class, \get_class($locator('bar')));
+        $this->assertSame(TestDefinition2::class, \get_class($locator(16)));
     }
 
     public function testBindingsAreCopied()

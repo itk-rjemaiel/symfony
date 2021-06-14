@@ -101,7 +101,7 @@ class TranslatorCacheTest extends TestCase
         $catalogue->addResource(new StaleResource()); // better use a helper class than a mock, because it gets serialized in the cache and re-loaded
 
         /** @var LoaderInterface|MockObject $loader */
-        $loader = $this->getMockBuilder('Symfony\Component\Translation\Loader\LoaderInterface')->getMock();
+        $loader = $this->createMock(LoaderInterface::class);
         $loader
             ->expects($this->exactly(2))
             ->method('load')
@@ -248,8 +248,8 @@ class TranslatorCacheTest extends TestCase
 
     public function testRefreshCacheWhenResourcesAreNoLongerFresh()
     {
-        $resource = $this->getMockBuilder('Symfony\Component\Config\Resource\SelfCheckingResourceInterface')->getMock();
-        $loader = $this->getMockBuilder('Symfony\Component\Translation\Loader\LoaderInterface')->getMock();
+        $resource = $this->createMock(SelfCheckingResourceInterface::class);
+        $loader = $this->createMock(LoaderInterface::class);
         $resource->method('isFresh')->willReturn(false);
         $loader
             ->expects($this->exactly(2))
@@ -267,6 +267,22 @@ class TranslatorCacheTest extends TestCase
         $translator->addLoader('loader', $loader);
         $translator->addResource('loader', 'foo', 'fr');
         $translator->trans('foo');
+    }
+
+    public function testCachedCatalogueIsReDumpedWhenCacheVaryChange()
+    {
+        $translator = new Translator('a', null, $this->tmpDir, false, []);
+        $translator->addLoader('array', new ArrayLoader());
+        $translator->addResource('array', ['foo' => 'bar'], 'a', 'messages');
+
+        // Cached catalogue is dumped
+        $this->assertSame('bar', $translator->trans('foo', [], 'messages', 'a'));
+
+        $translator = new Translator('a', null, $this->tmpDir, false, ['vary']);
+        $translator->addLoader('array', new ArrayLoader());
+        $translator->addResource('array', ['foo' => 'ccc'], 'a', 'messages');
+
+        $this->assertSame('ccc', $translator->trans('foo', [], 'messages', 'a'));
     }
 
     protected function getCatalogue($locale, $messages, $resources = [])
@@ -289,7 +305,7 @@ class TranslatorCacheTest extends TestCase
 
     private function createFailingLoader(): LoaderInterface
     {
-        $loader = $this->getMockBuilder('Symfony\Component\Translation\Loader\LoaderInterface')->getMock();
+        $loader = $this->createMock(LoaderInterface::class);
         $loader
             ->expects($this->never())
             ->method('load');

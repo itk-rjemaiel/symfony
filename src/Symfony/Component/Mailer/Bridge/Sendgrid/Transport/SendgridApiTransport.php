@@ -12,8 +12,9 @@
 namespace Symfony\Component\Mailer\Bridge\Sendgrid\Transport;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
-use Symfony\Component\Mailer\SmtpEnvelope;
+use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractApiTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -42,7 +43,7 @@ class SendgridApiTransport extends AbstractApiTransport
         return sprintf('sendgrid+api://%s', $this->getEndpoint());
     }
 
-    protected function doSendApi(Email $email, SmtpEnvelope $envelope): ResponseInterface
+    protected function doSendApi(SentMessage $sentMessage, Email $email, Envelope $envelope): ResponseInterface
     {
         $response = $this->client->request('POST', 'https://'.$this->getEndpoint().'/v3/mail/send', [
             'json' => $this->getPayload($email, $envelope),
@@ -52,19 +53,29 @@ class SendgridApiTransport extends AbstractApiTransport
         if (202 !== $response->getStatusCode()) {
             $errors = $response->toArray(false);
 
-            throw new HttpTransportException(sprintf('Unable to send an email: %s (code %s).', implode('; ', array_column($errors['errors'], 'message')), $response->getStatusCode()), $response);
+            throw new HttpTransportException('Unable to send an email: '.implode('; ', array_column($errors['errors'], 'message')).sprintf(' (code %d).', $response->getStatusCode()), $response);
         }
+
+        $sentMessage->setMessageId($response->getHeaders(false)['x-message-id'][0]);
 
         return $response;
     }
 
-    private function getPayload(Email $email, SmtpEnvelope $envelope): array
+    private function getPayload(Email $email, Envelope $envelope): array
     {
-        $addressStringifier = function (Address $address) {return ['email' => $address->toString()]; };
+        $addressStringifier = function (Address $address) {
+            $stringified = ['email' => $address->getAddress()];
+
+            if ($address->getName()) {
+                $stringified['name'] = $address->getName();
+            }
+
+            return $stringified;
+        };
 
         $payload = [
             'personalizations' => [],
-            'from' => ['email' => $envelope->getSender()->toString()],
+            'from' => $addressStringifier($envelope->getSender()),
             'content' => $this->getContent($email),
         ];
 
@@ -73,7 +84,7 @@ class SendgridApiTransport extends AbstractApiTransport
         }
 
         $personalization = [
-            'to' => array_map($addressStringifier, $email->getTo()),
+            'to' => array_map($addressStringifier, $this->getRecipients($email, $envelope)),
             'subject' => $email->getSubject(),
         ];
         if ($emails = array_map($addressStringifier, $email->getCc())) {
@@ -82,18 +93,23 @@ class SendgridApiTransport extends AbstractApiTransport
         if ($emails = array_map($addressStringifier, $email->getBcc())) {
             $personalization['bcc'] = $emails;
         }
+        if ($emails = array_map($addressStringifier, $email->getReplyTo())) {
+            // Email class supports an array of reply-to addresses,
+            // but SendGrid only supports a single address
+            $payload['reply_to'] = $emails[0];
+        }
 
         $payload['personalizations'][] = $personalization;
 
         // these headers can't be overwritten according to Sendgrid docs
-        // see https://developers.pepipost.com/migration-api/new-subpage/email-send
+        // see https://sendgrid.api-docs.io/v3.0/mail-send/mail-send-errors#-Headers-Errors
         $headersToBypass = ['x-sg-id', 'x-sg-eid', 'received', 'dkim-signature', 'content-transfer-encoding', 'from', 'to', 'cc', 'bcc', 'subject', 'content-type', 'reply-to'];
         foreach ($email->getHeaders()->all() as $name => $header) {
             if (\in_array($name, $headersToBypass, true)) {
                 continue;
             }
 
-            $payload['headers'][$name] = $header->toString();
+            $payload['headers'][$name] = $header->getBodyAsString();
         }
 
         return $payload;
@@ -121,7 +137,7 @@ class SendgridApiTransport extends AbstractApiTransport
             $disposition = $headers->getHeaderBody('Content-Disposition');
 
             $att = [
-                'content' => $attachment->bodyToString(),
+                'content' => str_replace("\r\n", '', $attachment->bodyToString()),
                 'type' => $headers->get('Content-Type')->getBody(),
                 'filename' => $filename,
                 'disposition' => $disposition,

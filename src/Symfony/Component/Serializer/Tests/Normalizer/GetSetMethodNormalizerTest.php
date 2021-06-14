@@ -17,6 +17,7 @@ use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
 use Symfony\Component\PropertyInfo\PropertyInfoExtractor;
 use Symfony\Component\Serializer\Exception\CircularReferenceException;
+use Symfony\Component\Serializer\Exception\LogicException;
 use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory;
 use Symfony\Component\Serializer\Mapping\Loader\AnnotationLoader;
 use Symfony\Component\Serializer\NameConverter\CamelCaseToSnakeCaseNameConverter;
@@ -68,15 +69,15 @@ class GetSetMethodNormalizerTest extends TestCase
 
     private function createNormalizer(array $defaultContext = [])
     {
-        $this->serializer = $this->getMockBuilder(__NAMESPACE__.'\SerializerNormalizer')->getMock();
+        $this->serializer = $this->createMock(SerializerNormalizer::class);
         $this->normalizer = new GetSetMethodNormalizer(null, null, null, null, null, $defaultContext);
         $this->normalizer->setSerializer($this->serializer);
     }
 
     public function testInterface()
     {
-        $this->assertInstanceOf('Symfony\Component\Serializer\Normalizer\NormalizerInterface', $this->normalizer);
-        $this->assertInstanceOf('Symfony\Component\Serializer\Normalizer\DenormalizerInterface', $this->normalizer);
+        $this->assertInstanceOf(NormalizerInterface::class, $this->normalizer);
+        $this->assertInstanceOf(DenormalizerInterface::class, $this->normalizer);
     }
 
     public function testNormalize()
@@ -157,7 +158,7 @@ class GetSetMethodNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'foo', 'bar' => 'bar', 'baz' => true, 'fooBar' => 'foobar'],
-            __NAMESPACE__.'\GetConstructorDummy', 'any');
+            GetConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertEquals('bar', $obj->getBar());
         $this->assertTrue($obj->isBaz());
@@ -167,7 +168,7 @@ class GetSetMethodNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'foo', 'bar' => null, 'baz' => true],
-            __NAMESPACE__.'\GetConstructorDummy', 'any');
+            GetConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertNull($obj->getBar());
         $this->assertTrue($obj->isBaz());
@@ -177,7 +178,7 @@ class GetSetMethodNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['foo' => 'test', 'baz' => [1, 2, 3]],
-            __NAMESPACE__.'\GetConstructorOptionalArgsDummy', 'any');
+            GetConstructorOptionalArgsDummy::class, 'any');
         $this->assertEquals('test', $obj->getFoo());
         $this->assertEquals([], $obj->getBar());
         $this->assertEquals([1, 2, 3], $obj->getBaz());
@@ -187,7 +188,7 @@ class GetSetMethodNormalizerTest extends TestCase
     {
         $obj = $this->normalizer->denormalize(
             ['bar' => 'test'],
-            __NAMESPACE__.'\GetConstructorArgsWithDefaultValueDummy', 'any');
+            GetConstructorArgsWithDefaultValueDummy::class, 'any');
         $this->assertEquals([], $obj->getFoo());
         $this->assertEquals('test', $obj->getBar());
     }
@@ -215,14 +216,14 @@ class GetSetMethodNormalizerTest extends TestCase
         $data->bar = 'bar';
         $data->baz = true;
         $data->fooBar = 'foobar';
-        $obj = $this->normalizer->denormalize($data, __NAMESPACE__.'\GetConstructorDummy', 'any');
+        $obj = $this->normalizer->denormalize($data, GetConstructorDummy::class, 'any');
         $this->assertEquals('foo', $obj->getFoo());
         $this->assertEquals('bar', $obj->getBar());
     }
 
     public function testConstructorWArgWithPrivateMutator()
     {
-        $obj = $this->normalizer->denormalize(['foo' => 'bar'], __NAMESPACE__.'\ObjectConstructorArgsWithPrivateMutatorDummy', 'any');
+        $obj = $this->normalizer->denormalize(['foo' => 'bar'], ObjectConstructorArgsWithPrivateMutatorDummy::class, 'any');
         $this->assertEquals('bar', $obj->getFoo());
     }
 
@@ -247,10 +248,10 @@ class GetSetMethodNormalizerTest extends TestCase
         );
     }
 
-    protected function getNormalizerForCircularReference(): GetSetMethodNormalizer
+    protected function getNormalizerForCircularReference(array $defaultContext): GetSetMethodNormalizer
     {
         $classMetadataFactory = new ClassMetadataFactory(new AnnotationLoader(new AnnotationReader()));
-        $normalizer = new GetSetMethodNormalizer($classMetadataFactory, new MetadataAwareNameConverter($classMetadataFactory));
+        $normalizer = new GetSetMethodNormalizer($classMetadataFactory, new MetadataAwareNameConverter($classMetadataFactory), null, null, null, $defaultContext);
         new Serializer([$normalizer]);
 
         return $normalizer;
@@ -424,9 +425,9 @@ class GetSetMethodNormalizerTest extends TestCase
 
     public function testUnableToNormalizeObjectAttribute()
     {
-        $this->expectException('Symfony\Component\Serializer\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Cannot normalize attribute "object" because the injected serializer is not a normalizer');
-        $serializer = $this->getMockBuilder('Symfony\Component\Serializer\SerializerInterface')->getMock();
+        $serializer = $this->createMock(SerializerInterface::class);
         $this->normalizer->setSerializer($serializer);
 
         $obj = new GetSetDummy();
@@ -479,7 +480,7 @@ class GetSetMethodNormalizerTest extends TestCase
 
     public function testPrivateSetter()
     {
-        $obj = $this->normalizer->denormalize(['foo' => 'foobar'], __NAMESPACE__.'\ObjectWithPrivateSetterDummy');
+        $obj = $this->normalizer->denormalize(['foo' => 'foobar'], ObjectWithPrivateSetterDummy::class);
         $this->assertEquals('bar', $obj->getFoo());
     }
 
@@ -663,7 +664,7 @@ class GetConstructorArgsWithDefaultValueDummy
     protected $foo;
     protected $bar;
 
-    public function __construct($foo = [], $bar)
+    public function __construct($foo = [], $bar = null)
     {
         $this->foo = $foo;
         $this->bar = $bar;

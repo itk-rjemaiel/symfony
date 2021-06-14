@@ -12,7 +12,9 @@
 namespace Symfony\Component\HttpKernel\Tests\EventListener;
 
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleEvent;
@@ -34,7 +36,7 @@ class DebugHandlersListenerTest extends TestCase
 {
     public function testConfigure()
     {
-        $logger = $this->getMockBuilder('Psr\Log\LoggerInterface')->getMock();
+        $logger = $this->createMock(LoggerInterface::class);
         $userHandler = function () {};
         $listener = new DebugHandlersListener($userHandler, $logger);
         $eHandler = new ErrorHandler();
@@ -57,8 +59,8 @@ class DebugHandlersListenerTest extends TestCase
 
         $loggers = $eHandler->setLoggers([]);
 
-        $this->assertArrayHasKey(E_DEPRECATED, $loggers);
-        $this->assertSame([$logger, LogLevel::INFO], $loggers[E_DEPRECATED]);
+        $this->assertArrayHasKey(\E_DEPRECATED, $loggers);
+        $this->assertSame([$logger, LogLevel::INFO], $loggers[\E_DEPRECATED]);
     }
 
     public function testConfigureForHttpKernelWithNoTerminateWithException()
@@ -66,7 +68,7 @@ class DebugHandlersListenerTest extends TestCase
         $listener = new DebugHandlersListener(null);
         $eHandler = new ErrorHandler();
         $event = new KernelEvent(
-            $this->getMockBuilder('Symfony\Component\HttpKernel\HttpKernelInterface')->getMock(),
+            $this->createMock(HttpKernelInterface::class),
             Request::create('/'),
             HttpKernelInterface::MASTER_REQUEST
         );
@@ -90,7 +92,7 @@ class DebugHandlersListenerTest extends TestCase
     {
         $dispatcher = new EventDispatcher();
         $listener = new DebugHandlersListener(null);
-        $app = $this->getMockBuilder('Symfony\Component\Console\Application')->getMock();
+        $app = $this->createMock(Application::class);
         $app->expects($this->once())->method('getHelperSet')->willReturn(new HelperSet());
         $command = new Command(__FUNCTION__);
         $command->setApplication($app);
@@ -101,7 +103,6 @@ class DebugHandlersListenerTest extends TestCase
         $xListeners = [
             KernelEvents::REQUEST => [[$listener, 'configure']],
             ConsoleEvents::COMMAND => [[$listener, 'configure']],
-            KernelEvents::EXCEPTION => [[$listener, 'onKernelException']],
         ];
         $this->assertSame($xListeners, $dispatcher->getListeners());
 
@@ -121,10 +122,10 @@ class DebugHandlersListenerTest extends TestCase
         }
 
         $xHandler = $eHandler->setExceptionHandler('var_dump');
-        $this->assertInstanceOf('Closure', $xHandler);
+        $this->assertInstanceOf(\Closure::class, $xHandler);
 
         $app->expects($this->once())
-            ->method('renderException');
+            ->method(method_exists(Application::class, 'renderThrowable') ? 'renderThrowable' : 'renderException');
 
         $xHandler(new \Exception());
     }

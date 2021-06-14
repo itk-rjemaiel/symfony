@@ -24,8 +24,8 @@ use Symfony\Component\Process\Process;
  */
 class WebServer
 {
-    const STARTED = 0;
-    const STOPPED = 1;
+    public const STARTED = 0;
+    public const STOPPED = 1;
 
     private $pidFileDirectory;
 
@@ -174,7 +174,7 @@ class WebServer
         return $process;
     }
 
-    private function getDefaultPidFile()
+    private function getDefaultPidFile(): string
     {
         return ($this->pidFileDirectory ?? getcwd()).'/.web-server-pid';
     }

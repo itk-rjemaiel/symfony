@@ -30,6 +30,18 @@ use Symfony\Contracts\Translation\TranslatorTrait;
  */
 class TranslatorTest extends TestCase
 {
+    private $defaultLocale;
+
+    protected function setUp(): void
+    {
+        $this->defaultLocale = \Locale::getDefault();
+    }
+
+    protected function tearDown(): void
+    {
+        \Locale::setDefault($this->defaultLocale);
+    }
+
     public function getTranslator()
     {
         return new class() implements TranslatorInterface {
@@ -161,7 +173,7 @@ class TranslatorTest extends TestCase
      */
     public function testThrowExceptionIfMatchingMessageCannotBeFound($id, $number)
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $translator = $this->getTranslator();
 
         $translator->trans($id, ['%count%' => $number]);

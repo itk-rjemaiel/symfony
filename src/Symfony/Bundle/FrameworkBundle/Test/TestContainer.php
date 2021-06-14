@@ -11,6 +11,7 @@
 
 namespace Symfony\Bundle\FrameworkBundle\Test;
 
+use Psr\Container\ContainerInterface;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
@@ -57,6 +58,8 @@ class TestContainer extends Container
 
     /**
      * {@inheritdoc}
+     *
+     * @return array|bool|float|int|string|null
      */
     public function getParameter($name)
     {
@@ -118,7 +121,7 @@ class TestContainer extends Container
      */
     public function reset()
     {
-        $this->getPublicContainer()->reset();
+        // ignore the call
     }
 
     /**
@@ -137,7 +140,7 @@ class TestContainer extends Container
         return $this->getPublicContainer()->getRemovedIds();
     }
 
-    private function getPublicContainer()
+    private function getPublicContainer(): Container
     {
         if (null === $container = $this->kernel->getContainer()) {
             throw new \LogicException('Cannot access the container on a non-booted kernel. Did you forget to boot it?');
@@ -146,7 +149,7 @@ class TestContainer extends Container
         return $container;
     }
 
-    private function getPrivateContainer()
+    private function getPrivateContainer(): ContainerInterface
     {
         return $this->getPublicContainer()->get($this->privateServicesLocatorId);
     }

@@ -12,7 +12,10 @@
 namespace Symfony\Component\Process\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Exception\InvalidArgumentException;
 use Symfony\Component\Process\Exception\LogicException;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Exception\RuntimeException;
 use Symfony\Component\Process\InputStream;
@@ -35,7 +38,7 @@ class ProcessTest extends TestCase
         self::$phpBin = getenv('SYMFONY_PROCESS_PHP_TEST_BINARY') ?: ('phpdbg' === \PHP_SAPI ? 'php' : $phpBin->find());
 
         ob_start();
-        phpinfo(INFO_GENERAL);
+        phpinfo(\INFO_GENERAL);
         self::$sigchild = false !== strpos(ob_get_clean(), '--enable-sigchild');
     }
 
@@ -49,8 +52,8 @@ class ProcessTest extends TestCase
 
     public function testInvalidCwd()
     {
-        $this->expectException('Symfony\Component\Process\Exception\RuntimeException');
-        $this->expectExceptionMessageRegExp('/The provided cwd ".*" does not exist\./');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/The provided cwd ".*" does not exist\./');
         try {
             // Check that it works fine if the CWD exists
             $cmd = new Process(['echo', 'test'], __DIR__);
@@ -68,23 +71,23 @@ class ProcessTest extends TestCase
         if ('\\' === \DIRECTORY_SEPARATOR) {
             $this->markTestSkipped('This test is transient on Windows');
         }
-        @trigger_error('Test Error', E_USER_NOTICE);
+        @trigger_error('Test Error', \E_USER_NOTICE);
         $process = $this->getProcessForCode('sleep(3)');
         $process->run();
         $actualError = error_get_last();
         $this->assertEquals('Test Error', $actualError['message']);
-        $this->assertEquals(E_USER_NOTICE, $actualError['type']);
+        $this->assertEquals(\E_USER_NOTICE, $actualError['type']);
     }
 
     public function testNegativeTimeoutFromConstructor()
     {
-        $this->expectException('Symfony\Component\Process\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->getProcess('', null, null, null, -1);
     }
 
     public function testNegativeTimeoutFromSetter()
     {
-        $this->expectException('Symfony\Component\Process\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $p = $this->getProcess('');
         $p->setTimeout(-1);
     }
@@ -196,7 +199,7 @@ class ProcessTest extends TestCase
 
         $process->wait();
 
-        $this->assertSame('foo'.PHP_EOL, $data);
+        $this->assertSame('foo'.\PHP_EOL, $data);
     }
 
     /**
@@ -272,7 +275,7 @@ class ProcessTest extends TestCase
 
     public function testSetInputWhileRunningThrowsAnException()
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Input can not be set while the process is running.');
         $process = $this->getProcessForCode('sleep(30);');
         $process->start();
@@ -292,8 +295,8 @@ class ProcessTest extends TestCase
      */
     public function testInvalidInput($value)
     {
-        $this->expectException('Symfony\Component\Process\Exception\InvalidArgumentException');
-        $this->expectExceptionMessage('Symfony\Component\Process\Process::setInput only accepts strings, Traversable objects or stream resources.');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('"Symfony\Component\Process\Process::setInput" only accepts strings, Traversable objects or stream resources.');
         $process = $this->getProcess('foo');
         $process->setInput($value);
     }
@@ -401,7 +404,7 @@ class ProcessTest extends TestCase
         $p = $this->getProcessForCode('file_put_contents($s = \''.$uri.'\', \'foo\'); flock(fopen('.var_export($lock, true).', \'r\'), LOCK_EX); file_put_contents($s, \'bar\');');
 
         $h = fopen($lock, 'w');
-        flock($h, LOCK_EX);
+        flock($h, \LOCK_EX);
 
         $p->start();
 
@@ -413,7 +416,7 @@ class ProcessTest extends TestCase
             $this->assertSame($s, $p->$getIncrementalOutput());
             $this->assertSame('', $p->$getIncrementalOutput());
 
-            flock($h, LOCK_UN);
+            flock($h, \LOCK_UN);
         }
 
         fclose($h);
@@ -476,6 +479,10 @@ class ProcessTest extends TestCase
             $this->markTestSkipped('Windows does not have /dev/tty support');
         }
 
+        if (!Process::isTtySupported()) {
+            $this->markTestSkipped('There is no TTY support');
+        }
+
         $process = $this->getProcess('echo "foo" >> /dev/null && '.$this->getProcessForCode('usleep(100000);')->getCommandLine());
         $process->setTty(true);
         $process->start();
@@ -491,6 +498,10 @@ class ProcessTest extends TestCase
             $this->markTestSkipped('Windows does have /dev/tty support');
         }
 
+        if (!Process::isTtySupported()) {
+            $this->markTestSkipped('There is no TTY support');
+        }
+
         $process = $this->getProcess('echo "foo" >> /dev/null');
         $process->setTty(true);
         $process->run();
@@ -500,7 +511,7 @@ class ProcessTest extends TestCase
 
     public function testTTYInWindowsEnvironment()
     {
-        $this->expectException('Symfony\Component\Process\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('TTY mode is not supported on Windows platform.');
         if ('\\' !== \DIRECTORY_SEPARATOR) {
             $this->markTestSkipped('This test is for Windows platform only');
@@ -536,7 +547,7 @@ class ProcessTest extends TestCase
         $process = $this->getProcess('echo foo');
 
         $this->assertSame($process, $process->mustRun());
-        $this->assertEquals('foo'.PHP_EOL, $process->getOutput());
+        $this->assertEquals('foo'.\PHP_EOL, $process->getOutput());
     }
 
     public function testSuccessfulMustRunHasCorrectExitCode()
@@ -547,7 +558,7 @@ class ProcessTest extends TestCase
 
     public function testMustRunThrowsException()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessFailedException');
+        $this->expectException(ProcessFailedException::class);
         $process = $this->getProcess('exit 1');
         $process->mustRun();
     }
@@ -699,7 +710,7 @@ class ProcessTest extends TestCase
 
     public function testProcessThrowsExceptionWhenExternallySignaled()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessSignaledException');
+        $this->expectException(ProcessSignaledException::class);
         $this->expectExceptionMessage('The process has been signaled with signal "9".');
         if (!\function_exists('posix_kill')) {
             $this->markTestSkipped('Function posix_kill is required.');
@@ -736,7 +747,7 @@ class ProcessTest extends TestCase
 
     public function testRunProcessWithTimeout()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessTimedOutException');
+        $this->expectException(ProcessTimedOutException::class);
         $this->expectExceptionMessage('exceeded the timeout of 0.1 seconds.');
         $process = $this->getProcessForCode('sleep(30);');
         $process->setTimeout(0.1);
@@ -754,7 +765,7 @@ class ProcessTest extends TestCase
 
     public function testIterateOverProcessWithTimeout()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessTimedOutException');
+        $this->expectException(ProcessTimedOutException::class);
         $this->expectExceptionMessage('exceeded the timeout of 0.1 seconds.');
         $process = $this->getProcessForCode('sleep(30);');
         $process->setTimeout(0.1);
@@ -786,7 +797,7 @@ class ProcessTest extends TestCase
 
     public function testCheckTimeoutOnStartedProcess()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessTimedOutException');
+        $this->expectException(ProcessTimedOutException::class);
         $this->expectExceptionMessage('exceeded the timeout of 0.1 seconds.');
         $process = $this->getProcessForCode('sleep(33);');
         $process->setTimeout(0.1);
@@ -849,7 +860,7 @@ class ProcessTest extends TestCase
 
     public function testStartAfterATimeout()
     {
-        $this->expectException('Symfony\Component\Process\Exception\ProcessTimedOutException');
+        $this->expectException(ProcessTimedOutException::class);
         $this->expectExceptionMessage('exceeded the timeout of 0.1 seconds.');
         $process = $this->getProcessForCode('sleep(35);');
         $process->setTimeout(0.1);
@@ -899,7 +910,7 @@ class ProcessTest extends TestCase
         while (false === strpos($process->getOutput(), 'Caught')) {
             usleep(1000);
         }
-        $process->signal(SIGUSR1);
+        $process->signal(\SIGUSR1);
         $process->wait();
 
         $this->assertEquals('Caught SIGUSR1', $process->getOutput());
@@ -912,7 +923,7 @@ class ProcessTest extends TestCase
     {
         $process = $this->getProcess('sleep 4');
         $process->start();
-        $process->signal(SIGKILL);
+        $process->signal(\SIGKILL);
 
         while ($process->isRunning()) {
             usleep(10000);
@@ -926,7 +937,7 @@ class ProcessTest extends TestCase
 
     public function testSignalProcessNotRunning()
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Can not send signal on a non running process.');
         $process = $this->getProcess('foo');
         $process->signal(1); // SIGHUP
@@ -939,8 +950,8 @@ class ProcessTest extends TestCase
     {
         $process = $this->getProcess('foo');
 
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
-        $this->expectExceptionMessage(sprintf('Process must be started before calling %s.', $method));
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(sprintf('Process must be started before calling "%s()".', $method));
 
         $process->{$method}();
     }
@@ -961,7 +972,7 @@ class ProcessTest extends TestCase
      */
     public function testMethodsThatNeedATerminatedProcess($method)
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Process must be terminated before calling');
         $process = $this->getProcessForCode('sleep(37);');
         $process->start();
@@ -988,21 +999,20 @@ class ProcessTest extends TestCase
 
     public function testWrongSignal()
     {
-        $this->expectException('Symfony\Component\Process\Exception\RuntimeException');
         if ('\\' === \DIRECTORY_SEPARATOR) {
             $this->markTestSkipped('POSIX signals do not work on Windows');
         }
+
+        $this->expectException(RuntimeException::class);
 
         $process = $this->getProcessForCode('sleep(38);');
         $process->start();
         try {
             $process->signal(-4);
             $this->fail('A RuntimeException must have been thrown');
-        } catch (RuntimeException $e) {
+        } finally {
             $process->stop(0);
         }
-
-        throw $e;
     }
 
     public function testDisableOutputDisablesTheOutput()
@@ -1017,7 +1027,7 @@ class ProcessTest extends TestCase
 
     public function testDisableOutputWhileRunningThrowsException()
     {
-        $this->expectException('Symfony\Component\Process\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Disabling output while the process is running is not possible.');
         $p = $this->getProcessForCode('sleep(39);');
         $p->start();
@@ -1026,7 +1036,7 @@ class ProcessTest extends TestCase
 
     public function testEnableOutputWhileRunningThrowsException()
     {
-        $this->expectException('Symfony\Component\Process\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Enabling output while the process is running is not possible.');
         $p = $this->getProcessForCode('sleep(40);');
         $p->disableOutput();
@@ -1046,7 +1056,7 @@ class ProcessTest extends TestCase
 
     public function testDisableOutputWhileIdleTimeoutIsSet()
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Output can not be disabled while an idle timeout is set.');
         $process = $this->getProcess('foo');
         $process->setIdleTimeout(1);
@@ -1055,7 +1065,7 @@ class ProcessTest extends TestCase
 
     public function testSetIdleTimeoutWhileOutputIsDisabled()
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('timeout can not be set while the output is disabled.');
         $process = $this->getProcess('foo');
         $process->disableOutput();
@@ -1074,7 +1084,7 @@ class ProcessTest extends TestCase
      */
     public function testGetOutputWhileDisabled($fetchMethod)
     {
-        $this->expectException('Symfony\Component\Process\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Output has been disabled.');
         $p = $this->getProcessForCode('sleep(41);');
         $p->disableOutput();
@@ -1371,7 +1381,7 @@ class ProcessTest extends TestCase
 
         $process->run();
 
-        $this->assertSame('hello'.PHP_EOL, $process->getOutput());
+        $this->assertSame('hello'.\PHP_EOL, $process->getOutput());
         $this->assertSame('', $process->getErrorOutput());
     }
 
@@ -1434,16 +1444,7 @@ class ProcessTest extends TestCase
         $p = Process::fromShellCommandline(sprintf('"%s" -r %s "a" "" "b"', self::$phpBin, escapeshellarg('print_r($argv);')));
         $p->run();
 
-        $expected = <<<EOTXT
-Array
-(
-    [0] => -
-    [1] => a
-    [2] => 
-    [3] => b
-)
-
-EOTXT;
+        $expected = "Array\n(\n    [0] => -\n    [1] => a\n    [2] => \n    [3] => b\n)\n";
         $this->assertSame($expected, str_replace('Standard input code', '-', $p->getOutput()));
     }
 
@@ -1463,7 +1464,7 @@ EOTXT;
 
     public function testPreparedCommand()
     {
-        $p = Process::fromShellCommandline('echo "$abc"DEF');
+        $p = Process::fromShellCommandline('echo "${:abc}"DEF');
         $p->run(null, ['abc' => 'ABC']);
 
         $this->assertSame('ABCDEF', rtrim($p->getOutput()));
@@ -1471,7 +1472,7 @@ EOTXT;
 
     public function testPreparedCommandMulti()
     {
-        $p = Process::fromShellCommandline('echo "$abc""$def"');
+        $p = Process::fromShellCommandline('echo "${:abc}""${:def}"');
         $p->run(null, ['abc' => 'ABC', 'def' => 'DEF']);
 
         $this->assertSame('ABCDEF', rtrim($p->getOutput()));
@@ -1479,7 +1480,7 @@ EOTXT;
 
     public function testPreparedCommandWithQuoteInIt()
     {
-        $p = Process::fromShellCommandline('php -r "$code" "$def"');
+        $p = Process::fromShellCommandline('php -r "${:code}" "${:def}"');
         $p->run(null, ['code' => 'echo $argv[1];', 'def' => '"DEF"']);
 
         $this->assertSame('"DEF"', rtrim($p->getOutput()));
@@ -1487,17 +1488,17 @@ EOTXT;
 
     public function testPreparedCommandWithMissingValue()
     {
-        $this->expectException('Symfony\Component\Process\Exception\InvalidArgumentException');
-        $this->expectExceptionMessage('Command line is missing a value for key "$abc": echo "$abc".');
-        $p = Process::fromShellCommandline('echo "$abc"');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Command line is missing a value for parameter "abc": echo "${:abc}"');
+        $p = Process::fromShellCommandline('echo "${:abc}"');
         $p->run(null, ['bcd' => 'BCD']);
     }
 
     public function testPreparedCommandWithNoValues()
     {
-        $this->expectException('Symfony\Component\Process\Exception\InvalidArgumentException');
-        $this->expectExceptionMessage('Command line is missing a value for key "$abc": echo "$abc".');
-        $p = Process::fromShellCommandline('echo "$abc"');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Command line is missing a value for parameter "abc": echo "${:abc}"');
+        $p = Process::fromShellCommandline('echo "${:abc}"');
         $p->run(null, []);
     }
 

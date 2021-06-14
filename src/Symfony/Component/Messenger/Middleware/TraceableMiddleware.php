@@ -71,15 +71,14 @@ class TraceableStack implements StackInterface
      */
     public function next(): MiddlewareInterface
     {
-        if (null !== $this->currentEvent) {
+        if (null !== $this->currentEvent && $this->stopwatch->isStarted($this->currentEvent)) {
             $this->stopwatch->stop($this->currentEvent);
         }
 
         if ($this->stack === $nextMiddleware = $this->stack->next()) {
             $this->currentEvent = 'Tail';
         } else {
-            $class = \get_class($nextMiddleware);
-            $this->currentEvent = sprintf('"%s"', 'c' === $class[0] && 0 === strpos($class, "class@anonymous\0") ? get_parent_class($class).'@anonymous' : $class);
+            $this->currentEvent = sprintf('"%s"', get_debug_type($nextMiddleware));
         }
         $this->currentEvent .= sprintf(' on "%s"', $this->busName);
 

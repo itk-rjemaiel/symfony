@@ -14,6 +14,7 @@ namespace Symfony\Component\Mailer\EventListener;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Mailer\Event\MessageEvent;
 use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Message;
 
 /**
  * Manipulates the Envelope of a Message.
@@ -26,8 +27,8 @@ class EnvelopeListener implements EventSubscriberInterface
     private $recipients;
 
     /**
-     * @param Address|string     $sender
-     * @param (Address|string)[] $recipients
+     * @param Address|string        $sender
+     * @param array<Address|string> $recipients
      */
     public function __construct($sender = null, array $recipients = null)
     {
@@ -43,6 +44,13 @@ class EnvelopeListener implements EventSubscriberInterface
     {
         if ($this->sender) {
             $event->getEnvelope()->setSender($this->sender);
+
+            $message = $event->getMessage();
+            if ($message instanceof Message) {
+                if (!$message->getHeaders()->has('Sender') && !$message->getHeaders()->has('From')) {
+                    $message->getHeaders()->addMailboxHeader('Sender', $this->sender->getAddress());
+                }
+            }
         }
 
         if ($this->recipients) {

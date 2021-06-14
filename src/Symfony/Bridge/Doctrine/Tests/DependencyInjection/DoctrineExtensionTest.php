@@ -12,6 +12,7 @@
 namespace Symfony\Bridge\Doctrine\Tests\DependencyInjection;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Bridge\Doctrine\DependencyInjection\AbstractDoctrineExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -22,7 +23,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 class DoctrineExtensionTest extends TestCase
 {
     /**
-     * @var \Symfony\Bridge\Doctrine\DependencyInjection\AbstractDoctrineExtension
+     * @var AbstractDoctrineExtension
      */
     private $extension;
 
@@ -31,7 +32,7 @@ class DoctrineExtensionTest extends TestCase
         parent::setUp();
 
         $this->extension = $this
-            ->getMockBuilder('Symfony\Bridge\Doctrine\DependencyInjection\AbstractDoctrineExtension')
+            ->getMockBuilder(AbstractDoctrineExtension::class)
             ->setMethods([
                 'getMappingResourceConfigDirectory',
                 'getObjectManagerElementName',
@@ -51,7 +52,7 @@ class DoctrineExtensionTest extends TestCase
 
     public function testFixManagersAutoMappingsWithTwoAutomappings()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $emConfigs = [
             'em1' => [
                 'auto_mapping' => true,
@@ -234,7 +235,7 @@ class DoctrineExtensionTest extends TestCase
 
     public function testUnrecognizedCacheDriverException()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('"unrecognized_type" is an unrecognized Doctrine cache driver.');
         $cacheName = 'metadata_cache';
         $container = $this->createContainer();

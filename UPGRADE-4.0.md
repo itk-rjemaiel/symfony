@@ -26,8 +26,8 @@ file and directory structure of your application:
 
 Then, upgrade the contents of your console script and your front controller:
 
-* `bin/console`: https://github.com/symfony/recipes/blob/master/symfony/console/3.3/bin/console
-* `public/index.php`: https://github.com/symfony/recipes/blob/master/symfony/framework-bundle/3.3/public/index.php
+* `bin/console`: https://github.com/symfony/recipes/blob/master/symfony/console/4.4/bin/console
+* `public/index.php`: https://github.com/symfony/recipes/blob/master/symfony/framework-bundle/4.4/public/index.php
 
 Lastly, read the following article to add Symfony Flex to your application and
 upgrade the configuration files: https://symfony.com/doc/current/setup/flex.html
@@ -250,9 +250,9 @@ DependencyInjection
 DoctrineBridge
 --------------
 
-* The `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandler` and
-  `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandlerSchema` have been removed. Use
-  `Symfony\Component\HttpFoundation\Session\Storage\Handler\PdoSessionHandler` instead.
+ * The `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandler` and
+   `Symfony\Bridge\Doctrine\HttpFoundation\DbalSessionHandlerSchema` have been removed. Use
+   `Symfony\Component\HttpFoundation\Session\Storage\Handler\PdoSessionHandler` instead.
 
 EventDispatcher
 ---------------
@@ -287,9 +287,9 @@ Finder
 Form
 ----
 
-* The values of the `FormEvents::*` constants have been updated to match the
-  constant names. You should only update your application if you relied on the
-  constant values instead of their names.
+ * The values of the `FormEvents::*` constants have been updated to match the
+   constant names. You should only update your application if you relied on the
+   constant values instead of their names.
 
  * The `choices_as_values` option of the `ChoiceType` has been removed.
 
@@ -817,8 +817,8 @@ Translation
 TwigBundle
 ----------
 
-* The `ContainerAwareRuntimeLoader` class has been removed. Use the
-  Twig `Twig_ContainerRuntimeLoader` class instead.
+ * The `ContainerAwareRuntimeLoader` class has been removed. Use the
+   Twig `Twig_ContainerRuntimeLoader` class instead.
 
  * Removed `DebugCommand` in favor of `Symfony\Bridge\Twig\Command\DebugCommand`.
 
@@ -869,7 +869,6 @@ TwigBridge
 
  * Removed `LintCommand::set/getTwigEnvironment`. Pass an instance of
    `Twig\Environment` as first argument of the constructor instead.
-
 
 Validator
 ---------
@@ -924,7 +923,7 @@ Validator
 VarDumper
 ---------
 
- * The `VarDumperTestTrait::assertDumpEquals()` method expects a 3rd `$context = null`
+ * The `VarDumperTestTrait::assertDumpEquals()` method expects a 3rd `$filter = 0`
    argument and moves `$message = ''` argument at 4th position.
 
    Before:
@@ -939,7 +938,7 @@ VarDumper
    VarDumperTestTrait::assertDumpEquals($dump, $data, $filter = 0, $message = '');
    ```
 
- * The `VarDumperTestTrait::assertDumpMatchesFormat()` method expects a 3rd `$context = null`
+ * The `VarDumperTestTrait::assertDumpMatchesFormat()` method expects a 3rd `$filter = 0`
    argument and moves `$message = ''` argument at 4th position.
 
    Before:

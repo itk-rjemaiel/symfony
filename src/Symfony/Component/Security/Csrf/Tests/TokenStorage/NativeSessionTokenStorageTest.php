@@ -12,6 +12,7 @@
 namespace Symfony\Component\Security\Csrf\Tests\TokenStorage;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Security\Csrf\Exception\TokenNotFoundException;
 use Symfony\Component\Security\Csrf\TokenStorage\NativeSessionTokenStorage;
 
 /**
@@ -22,7 +23,7 @@ use Symfony\Component\Security\Csrf\TokenStorage\NativeSessionTokenStorage;
  */
 class NativeSessionTokenStorageTest extends TestCase
 {
-    const SESSION_NAMESPACE = 'foobar';
+    private const SESSION_NAMESPACE = 'foobar';
 
     /**
      * @var NativeSessionTokenStorage
@@ -47,11 +48,11 @@ class NativeSessionTokenStorageTest extends TestCase
     {
         session_id('foobar');
 
-        $this->assertSame(PHP_SESSION_NONE, session_status());
+        $this->assertSame(\PHP_SESSION_NONE, session_status());
 
         $this->storage->setToken('token_id', 'TOKEN');
 
-        $this->assertSame(PHP_SESSION_ACTIVE, session_status());
+        $this->assertSame(\PHP_SESSION_ACTIVE, session_status());
         $this->assertSame([self::SESSION_NAMESPACE => ['token_id' => 'TOKEN']], $_SESSION);
     }
 
@@ -88,7 +89,7 @@ class NativeSessionTokenStorageTest extends TestCase
 
     public function testGetNonExistingToken()
     {
-        $this->expectException('Symfony\Component\Security\Csrf\Exception\TokenNotFoundException');
+        $this->expectException(TokenNotFoundException::class);
         $this->storage->getToken('token_id');
     }
 

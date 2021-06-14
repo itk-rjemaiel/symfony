@@ -23,9 +23,9 @@ use Symfony\Component\Validator\Exception\MissingOptionsException;
  */
 class Length extends Constraint
 {
-    const TOO_SHORT_ERROR = '9ff3fdc4-b214-49db-8718-39c315e33d45';
-    const TOO_LONG_ERROR = 'd94b19cc-114f-4f44-9cc4-4138e80a87b9';
-    const INVALID_CHARACTERS_ERROR = '35e6a710-aa2e-4719-b58e-24b35749b767';
+    public const TOO_SHORT_ERROR = '9ff3fdc4-b214-49db-8718-39c315e33d45';
+    public const TOO_LONG_ERROR = 'd94b19cc-114f-4f44-9cc4-4138e80a87b9';
+    public const INVALID_CHARACTERS_ERROR = '35e6a710-aa2e-4719-b58e-24b35749b767';
 
     protected static $errorNames = [
         self::TOO_SHORT_ERROR => 'TOO_SHORT_ERROR',
@@ -57,15 +57,8 @@ class Length extends Constraint
 
         parent::__construct($options);
 
-        if (null === $this->allowEmptyString) {
-            $this->allowEmptyString = true;
-            if (null !== $this->min) {
-                @trigger_error(sprintf('Using the "%s" constraint with the "min" option without setting the "allowEmptyString" one is deprecated and defaults to true. In 5.0, it will become optional and default to false.', self::class), E_USER_DEPRECATED);
-            }
-        }
-
         if (null === $this->min && null === $this->max) {
-            throw new MissingOptionsException(sprintf('Either option "min" or "max" must be given for constraint %s', __CLASS__), ['min', 'max']);
+            throw new MissingOptionsException(sprintf('Either option "min" or "max" must be given for constraint "%s".', __CLASS__), ['min', 'max']);
         }
 
         if (null !== $this->normalizer && !\is_callable($this->normalizer)) {

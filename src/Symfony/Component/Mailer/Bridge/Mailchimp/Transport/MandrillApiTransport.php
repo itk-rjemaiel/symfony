@@ -12,8 +12,9 @@
 namespace Symfony\Component\Mailer\Bridge\Mailchimp\Transport;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
-use Symfony\Component\Mailer\SmtpEnvelope;
+use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractApiTransport;
 use Symfony\Component\Mime\Email;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -41,20 +42,23 @@ class MandrillApiTransport extends AbstractApiTransport
         return sprintf('mandrill+api://%s', $this->getEndpoint());
     }
 
-    protected function doSendApi(Email $email, SmtpEnvelope $envelope): ResponseInterface
+    protected function doSendApi(SentMessage $sentMessage, Email $email, Envelope $envelope): ResponseInterface
     {
         $response = $this->client->request('POST', 'https://'.$this->getEndpoint().'/api/1.0/messages/send.json', [
             'json' => $this->getPayload($email, $envelope),
         ]);
 
+        $result = $response->toArray(false);
         if (200 !== $response->getStatusCode()) {
-            $result = $response->toArray(false);
             if ('error' === ($result['status'] ?? false)) {
-                throw new HttpTransportException(sprintf('Unable to send an email: %s (code %s).', $result['message'], $result['code']), $response);
+                throw new HttpTransportException('Unable to send an email: '.$result['message'].sprintf(' (code %d).', $result['code']), $response);
             }
 
-            throw new HttpTransportException(sprintf('Unable to send an email (code %s).', $result['code']), $response);
+            throw new HttpTransportException(sprintf('Unable to send an email (code %d).', $result['code']), $response);
         }
+
+        $firstRecipient = reset($result);
+        $sentMessage->setMessageId($firstRecipient['_id']);
 
         return $response;
     }
@@ -64,7 +68,7 @@ class MandrillApiTransport extends AbstractApiTransport
         return ($this->host ?: self::HOST).($this->port ? ':'.$this->port : '');
     }
 
-    private function getPayload(Email $email, SmtpEnvelope $envelope): array
+    private function getPayload(Email $email, Envelope $envelope): array
     {
         $payload = [
             'key' => $this->key,
@@ -72,10 +76,14 @@ class MandrillApiTransport extends AbstractApiTransport
                 'html' => $email->getHtmlBody(),
                 'text' => $email->getTextBody(),
                 'subject' => $email->getSubject(),
-                'from_email' => $envelope->getSender()->toString(),
+                'from_email' => $envelope->getSender()->getAddress(),
                 'to' => $this->getRecipients($email, $envelope),
             ],
         ];
+
+        if ('' !== $envelope->getSender()->getName()) {
+            $payload['message']['from_name'] = $envelope->getSender()->getName();
+        }
 
         foreach ($email->getAttachments() as $attachment) {
             $headers = $attachment->getPreparedHeaders();
@@ -86,10 +94,14 @@ class MandrillApiTransport extends AbstractApiTransport
                 'type' => $headers->get('Content-Type')->getBody(),
             ];
 
+            if ($name = $headers->getHeaderParameter('Content-Disposition', 'name')) {
+                $att['name'] = $name;
+            }
+
             if ('inline' === $disposition) {
-                $payload['images'][] = $att;
+                $payload['message']['images'][] = $att;
             } else {
-                $payload['attachments'][] = $att;
+                $payload['message']['attachments'][] = $att;
             }
         }
 
@@ -99,13 +111,13 @@ class MandrillApiTransport extends AbstractApiTransport
                 continue;
             }
 
-            $payload['message']['headers'][] = $name.': '.$header->toString();
+            $payload['message']['headers'][$name] = $header->getBodyAsString();
         }
 
         return $payload;
     }
 
-    protected function getRecipients(Email $email, SmtpEnvelope $envelope): array
+    protected function getRecipients(Email $email, Envelope $envelope): array
     {
         $recipients = [];
         foreach ($envelope->getRecipients() as $recipient) {
@@ -116,10 +128,16 @@ class MandrillApiTransport extends AbstractApiTransport
                 $type = 'cc';
             }
 
-            $recipients[] = [
-                'email' => $recipient->toString(),
+            $recipientPayload = [
+                'email' => $recipient->getAddress(),
                 'type' => $type,
             ];
+
+            if ('' !== $recipient->getName()) {
+                $recipientPayload['name'] = $recipient->getName();
+            }
+
+            $recipients[] = $recipientPayload;
         }
 
         return $recipients;

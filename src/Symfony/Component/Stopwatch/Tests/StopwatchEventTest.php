@@ -23,7 +23,7 @@ use Symfony\Component\Stopwatch\StopwatchEvent;
  */
 class StopwatchEventTest extends TestCase
 {
-    const DELTA = 37;
+    private const DELTA = 37;
 
     public function testGetOrigin()
     {
@@ -99,13 +99,30 @@ class StopwatchEventTest extends TestCase
         $event->stop();
         usleep(50000);
         $event->start();
-        usleep(100000);
         $this->assertEqualsWithDelta(100, $event->getDuration(), self::DELTA);
+        usleep(100000);
+        $this->assertEqualsWithDelta(200, $event->getDuration(), self::DELTA);
+    }
+
+    public function testDurationWithMultipleStarts()
+    {
+        $event = new StopwatchEvent(microtime(true) * 1000);
+        $event->start();
+        usleep(100000);
+        $event->start();
+        usleep(100000);
+        $this->assertEqualsWithDelta(300, $event->getDuration(), self::DELTA);
+        $event->stop();
+        $this->assertEqualsWithDelta(300, $event->getDuration(), self::DELTA);
+        usleep(100000);
+        $this->assertEqualsWithDelta(400, $event->getDuration(), self::DELTA);
+        $event->stop();
+        $this->assertEqualsWithDelta(400, $event->getDuration(), self::DELTA);
     }
 
     public function testStopWithoutStart()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $event = new StopwatchEvent(microtime(true) * 1000);
         $event->stop();
     }
@@ -150,6 +167,27 @@ class StopwatchEventTest extends TestCase
         usleep(100000);
         $event->stop();
         $this->assertEqualsWithDelta(0, $event->getStartTime(), self::DELTA);
+    }
+
+    public function testStartTimeWhenStartedLater()
+    {
+        $event = new StopwatchEvent(microtime(true) * 1000);
+        usleep(100000);
+        $this->assertLessThanOrEqual(0.5, $event->getStartTime());
+
+        $event = new StopwatchEvent(microtime(true) * 1000);
+        usleep(100000);
+        $event->start();
+        $event->stop();
+        $this->assertLessThanOrEqual(101, $event->getStartTime());
+
+        $event = new StopwatchEvent(microtime(true) * 1000);
+        usleep(100000);
+        $event->start();
+        usleep(100000);
+        $this->assertEqualsWithDelta(100, $event->getStartTime(), self::DELTA);
+        $event->stop();
+        $this->assertEqualsWithDelta(100, $event->getStartTime(), self::DELTA);
     }
 
     public function testHumanRepresentation()

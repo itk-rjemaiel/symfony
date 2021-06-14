@@ -13,6 +13,7 @@ namespace Symfony\Component\Security\Core\Tests\Role;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Role\SwitchUserRole;
+use Symfony\Component\Security\Core\Tests\Fixtures\TokenInterface;
 
 /**
  * @group legacy
@@ -21,14 +22,14 @@ class SwitchUserRoleTest extends TestCase
 {
     public function testGetSource()
     {
-        $role = new SwitchUserRole('FOO', $token = $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock());
+        $role = new SwitchUserRole('FOO', $token = $this->createMock(TokenInterface::class));
 
         $this->assertSame($token, $role->getSource());
     }
 
     public function testGetRole()
     {
-        $role = new SwitchUserRole('FOO', $this->getMockBuilder('Symfony\Component\Security\Core\Authentication\Token\TokenInterface')->getMock());
+        $role = new SwitchUserRole('FOO', $this->createMock(TokenInterface::class));
 
         $this->assertEquals('FOO', $role->getRole());
     }

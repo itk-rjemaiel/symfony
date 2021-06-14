@@ -16,8 +16,10 @@ use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\BooleanNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\NodeDefinition;
 use Symfony\Component\Config\Definition\Builder\ScalarNodeDefinition;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Exception\InvalidDefinitionException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\Config\Definition\PrototypedArrayNode;
 
 class ArrayNodeDefinitionTest extends TestCase
 {
@@ -40,9 +42,9 @@ class ArrayNodeDefinitionTest extends TestCase
     /**
      * @dataProvider providePrototypeNodeSpecificCalls
      */
-    public function testPrototypeNodeSpecificOption($method, $args)
+    public function testPrototypeNodeSpecificOption(string $method, array $args)
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
+        $this->expectException(InvalidDefinitionException::class);
         $node = new ArrayNodeDefinition('root');
 
         $node->{$method}(...$args);
@@ -50,7 +52,7 @@ class ArrayNodeDefinitionTest extends TestCase
         $node->getNode();
     }
 
-    public function providePrototypeNodeSpecificCalls()
+    public function providePrototypeNodeSpecificCalls(): array
     {
         return [
             ['defaultValue', [[]]],
@@ -63,7 +65,7 @@ class ArrayNodeDefinitionTest extends TestCase
 
     public function testConcreteNodeSpecificOption()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
+        $this->expectException(InvalidDefinitionException::class);
         $node = new ArrayNodeDefinition('root');
         $node
             ->addDefaultsIfNotSet()
@@ -74,7 +76,7 @@ class ArrayNodeDefinitionTest extends TestCase
 
     public function testPrototypeNodesCantHaveADefaultValueWhenUsingDefaultChildren()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
+        $this->expectException(InvalidDefinitionException::class);
         $node = new ArrayNodeDefinition('root');
         $node
             ->defaultValue([])
@@ -96,9 +98,11 @@ class ArrayNodeDefinitionTest extends TestCase
     }
 
     /**
+     * @param int|array|string|null $args
+     *
      * @dataProvider providePrototypedArrayNodeDefaults
      */
-    public function testPrototypedArrayNodeDefault($args, $shouldThrowWhenUsingAttrAsKey, $shouldThrowWhenNotUsingAttrAsKey, $defaults)
+    public function testPrototypedArrayNodeDefault($args, bool $shouldThrowWhenUsingAttrAsKey, bool $shouldThrowWhenNotUsingAttrAsKey, array $defaults)
     {
         $node = new ArrayNodeDefinition('root');
         $node
@@ -130,7 +134,7 @@ class ArrayNodeDefinitionTest extends TestCase
         }
     }
 
-    public function providePrototypedArrayNodeDefaults()
+    public function providePrototypedArrayNodeDefaults(): array
     {
         return [
             [null, true, false, [[]]],
@@ -152,8 +156,8 @@ class ArrayNodeDefinitionTest extends TestCase
         ;
         $node = $nodeDefinition->getNode();
 
-        $this->assertInstanceOf('Symfony\Component\Config\Definition\PrototypedArrayNode', $node);
-        $this->assertInstanceOf('Symfony\Component\Config\Definition\PrototypedArrayNode', $node->getPrototype());
+        $this->assertInstanceOf(PrototypedArrayNode::class, $node);
+        $this->assertInstanceOf(PrototypedArrayNode::class, $node->getPrototype());
     }
 
     public function testEnabledNodeDefaults()
@@ -171,7 +175,7 @@ class ArrayNodeDefinitionTest extends TestCase
     /**
      * @dataProvider getEnableableNodeFixtures
      */
-    public function testTrueEnableEnabledNode($expected, $config, $message)
+    public function testTrueEnableEnabledNode(array $expected, array $config, string $message)
     {
         $processor = new Processor();
         $node = new ArrayNodeDefinition('root');
@@ -291,7 +295,7 @@ class ArrayNodeDefinitionTest extends TestCase
         $this->assertEquals($node->prototype('enum'), $node->enumPrototype());
     }
 
-    public function getEnableableNodeFixtures()
+    public function getEnableableNodeFixtures(): array
     {
         return [
             [['enabled' => true, 'foo' => 'bar'], [true], 'true enables an enableable node'],
@@ -317,7 +321,7 @@ class ArrayNodeDefinitionTest extends TestCase
 
     public function testCannotBeEmpty()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('The path "root" should have at least 1 element(s) defined.');
         $node = new ArrayNodeDefinition('root');
         $node
@@ -343,7 +347,7 @@ class ArrayNodeDefinitionTest extends TestCase
 
     public function testCannotBeEmptyOnConcreteNode()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidDefinitionException');
+        $this->expectException(InvalidDefinitionException::class);
         $this->expectExceptionMessage('->cannotBeEmpty() is not applicable to concrete nodes at path "root"');
         $node = new ArrayNodeDefinition('root');
         $node->cannotBeEmpty();
@@ -430,7 +434,10 @@ class ArrayNodeDefinitionTest extends TestCase
         $this->assertSame($expectedName, $this->getField($actualNode, 'name'));
     }
 
-    protected function getField($object, $field)
+    /**
+     * @param object $object
+     */
+    protected function getField($object, string $field)
     {
         $reflection = new \ReflectionProperty($object, $field);
         $reflection->setAccessible(true);

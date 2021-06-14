@@ -18,6 +18,7 @@ use Symfony\Component\Form\Extension\Csrf\EventListener\CsrfValidationListener;
 use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormFactoryBuilder;
+use Symfony\Component\Form\Util\ServerParams;
 use Symfony\Component\Security\Csrf\CsrfTokenManager;
 
 class CsrfValidationListenerTest extends TestCase
@@ -75,12 +76,7 @@ class CsrfValidationListenerTest extends TestCase
 
     public function testMaxPostSizeExceeded()
     {
-        $serverParams = $this
-            ->getMockBuilder('\Symfony\Component\Form\Util\ServerParams')
-            ->disableOriginalConstructor()
-            ->getMock()
-        ;
-
+        $serverParams = $this->createMock(ServerParams::class);
         $serverParams
             ->expects($this->once())
             ->method('hasPostMaxSizeBeenExceeded')

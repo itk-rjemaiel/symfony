@@ -12,10 +12,10 @@
 namespace Symfony\Bridge\Doctrine\Tests\Form\Type;
 
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Tools\SchemaTool;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bridge\Doctrine\Form\DoctrineOrmExtension;
 use Symfony\Bridge\Doctrine\Form\DoctrineOrmTypeGuesser;
@@ -29,24 +29,29 @@ use Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdEntity;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdNoToStringEntity;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringCastableIdEntity;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringIdEntity;
+use Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface;
 use Symfony\Component\Form\ChoiceList\View\ChoiceGroupView;
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
+use Symfony\Component\Form\Exception\RuntimeException;
+use Symfony\Component\Form\Exception\UnexpectedTypeException;
 use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\Tests\Extension\Core\Type\BaseTypeTest;
 use Symfony\Component\Form\Tests\Extension\Core\Type\FormTypeTest;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
+use Symfony\Component\OptionsResolver\Exception\MissingOptionsException;
 
 class EntityTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Bridge\Doctrine\Form\Type\EntityType';
+    public const TESTED_TYPE = 'Symfony\Bridge\Doctrine\Form\Type\EntityType';
 
-    const ITEM_GROUP_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\GroupableEntity';
-    const SINGLE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdEntity';
-    const SINGLE_IDENT_NO_TO_STRING_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdNoToStringEntity';
-    const SINGLE_STRING_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringIdEntity';
-    const SINGLE_ASSOC_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleAssociationToIntIdEntity';
-    const SINGLE_STRING_CASTABLE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringCastableIdEntity';
-    const COMPOSITE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\CompositeIntIdEntity';
-    const COMPOSITE_STRING_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\CompositeStringIdEntity';
+    private const ITEM_GROUP_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\GroupableEntity';
+    private const SINGLE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdEntity';
+    private const SINGLE_IDENT_NO_TO_STRING_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleIntIdNoToStringEntity';
+    private const SINGLE_STRING_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringIdEntity';
+    private const SINGLE_ASSOC_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleAssociationToIntIdEntity';
+    private const SINGLE_STRING_CASTABLE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\SingleStringCastableIdEntity';
+    private const COMPOSITE_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\CompositeIntIdEntity';
+    private const COMPOSITE_STRING_IDENT_CLASS = 'Symfony\Bridge\Doctrine\Tests\Fixtures\CompositeStringIdEntity';
 
     /**
      * @var EntityManager
@@ -58,7 +63,7 @@ class EntityTypeTest extends BaseTypeTest
      */
     private $emRegistry;
 
-    protected static $supportedFeatureSetVersion = 304;
+    protected static $supportedFeatureSetVersion = 404;
 
     protected function setUp(): void
     {
@@ -118,16 +123,49 @@ class EntityTypeTest extends BaseTypeTest
 
     public function testClassOptionIsRequired()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\MissingOptionsException');
+        $this->expectException(MissingOptionsException::class);
         $this->factory->createNamed('name', static::TESTED_TYPE);
     }
 
     public function testInvalidClassOption()
     {
-        $this->expectException('Symfony\Component\Form\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->factory->createNamed('name', static::TESTED_TYPE, null, [
             'class' => 'foo',
         ]);
+    }
+
+    /**
+     * @dataProvider choiceTranslationDomainProvider
+     */
+    public function testChoiceTranslationDomainIsDisabledByDefault($expanded)
+    {
+        $entity1 = new SingleIntIdEntity(1, 'Foo');
+
+        $this->persist([$entity1]);
+
+        $field = $this->factory->createNamed('name', static::TESTED_TYPE, null, [
+            'choices' => [
+                $entity1,
+            ],
+            'class' => SingleIntIdEntity::class,
+            'em' => 'default',
+            'expanded' => $expanded,
+        ]);
+
+        if ($expanded) {
+            $this->assertFalse($field->get('1')->getConfig()->getOption('translation_domain'));
+        } else {
+            $this->assertFalse($field->getConfig()->getOption('choice_translation_domain'));
+        }
+    }
+
+    public function choiceTranslationDomainProvider()
+    {
+        return [
+            [false],
+            [true],
+        ];
     }
 
     public function testSetDataToUninitializedEntityWithNonRequired()
@@ -186,8 +224,8 @@ class EntityTypeTest extends BaseTypeTest
 
     public function testConfigureQueryBuilderWithNonQueryBuilderAndNonClosure()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
-        $field = $this->factory->createNamed('name', static::TESTED_TYPE, null, [
+        $this->expectException(InvalidOptionsException::class);
+        $this->factory->createNamed('name', static::TESTED_TYPE, null, [
             'em' => 'default',
             'class' => self::SINGLE_IDENT_CLASS,
             'query_builder' => new \stdClass(),
@@ -196,7 +234,7 @@ class EntityTypeTest extends BaseTypeTest
 
     public function testConfigureQueryBuilderWithClosureReturningNonQueryBuilder()
     {
-        $this->expectException('Symfony\Component\Form\Exception\UnexpectedTypeException');
+        $this->expectException(UnexpectedTypeException::class);
         $field = $this->factory->createNamed('name', static::TESTED_TYPE, null, [
             'em' => 'default',
             'class' => self::SINGLE_IDENT_CLASS,
@@ -953,6 +991,56 @@ class EntityTypeTest extends BaseTypeTest
         $this->assertNull($field->getData());
     }
 
+    public function testSingleIdentifierWithLimit()
+    {
+        $entity1 = new SingleIntIdEntity(1, 'Foo');
+        $entity2 = new SingleIntIdEntity(2, 'Bar');
+        $entity3 = new SingleIntIdEntity(3, 'Baz');
+
+        $this->persist([$entity1, $entity2, $entity3]);
+
+        $repository = $this->em->getRepository(self::SINGLE_IDENT_CLASS);
+
+        $field = $this->factory->createNamed('name', static::TESTED_TYPE, null, [
+            'em' => 'default',
+            'class' => self::SINGLE_IDENT_CLASS,
+            'query_builder' => $repository->createQueryBuilder('e')
+                ->where('e.id IN (1, 2, 3)')
+                ->setMaxResults(1),
+            'choice_label' => 'name',
+        ]);
+
+        $field->submit('1');
+
+        $this->assertTrue($field->isSynchronized());
+        $this->assertSame($entity1, $field->getData());
+    }
+
+    public function testDisallowChoicesThatAreNotIncludedByQueryBuilderSingleIdentifierWithLimit()
+    {
+        $entity1 = new SingleIntIdEntity(1, 'Foo');
+        $entity2 = new SingleIntIdEntity(2, 'Bar');
+        $entity3 = new SingleIntIdEntity(3, 'Baz');
+
+        $this->persist([$entity1, $entity2, $entity3]);
+
+        $repository = $this->em->getRepository(self::SINGLE_IDENT_CLASS);
+
+        $field = $this->factory->createNamed('name', static::TESTED_TYPE, null, [
+            'em' => 'default',
+            'class' => self::SINGLE_IDENT_CLASS,
+            'query_builder' => $repository->createQueryBuilder('e')
+                ->where('e.id IN (1, 2, 3)')
+                ->setMaxResults(1),
+            'choice_label' => 'name',
+        ]);
+
+        $field->submit('3');
+
+        $this->assertFalse($field->isSynchronized());
+        $this->assertNull($field->getData());
+    }
+
     public function testDisallowChoicesThatAreNotIncludedQueryBuilderSingleAssocIdentifier()
     {
         $innerEntity1 = new SingleIntIdNoToStringEntity(1, 'InFoo');
@@ -1159,7 +1247,7 @@ class EntityTypeTest extends BaseTypeTest
         $choiceLoader2 = $form->get('property2')->getConfig()->getOption('choice_loader');
         $choiceLoader3 = $form->get('property3')->getConfig()->getOption('choice_loader');
 
-        $this->assertInstanceOf('Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface', $choiceLoader1);
+        $this->assertInstanceOf(ChoiceLoaderInterface::class, $choiceLoader1);
         $this->assertSame($choiceLoader1, $choiceLoader2);
         $this->assertSame($choiceLoader1, $choiceLoader3);
     }
@@ -1219,14 +1307,14 @@ class EntityTypeTest extends BaseTypeTest
         $choiceLoader2 = $form->get('property2')->getConfig()->getOption('choice_loader');
         $choiceLoader3 = $form->get('property3')->getConfig()->getOption('choice_loader');
 
-        $this->assertInstanceOf('Symfony\Component\Form\ChoiceList\Loader\ChoiceLoaderInterface', $choiceLoader1);
+        $this->assertInstanceOf(ChoiceLoaderInterface::class, $choiceLoader1);
         $this->assertSame($choiceLoader1, $choiceLoader2);
         $this->assertSame($choiceLoader1, $choiceLoader3);
     }
 
     protected function createRegistryMock($name, $em)
     {
-        $registry = $this->getMockBuilder('Doctrine\Common\Persistence\ManagerRegistry')->getMock();
+        $registry = $this->createMock(ManagerRegistry::class);
         $registry->expects($this->any())
             ->method('getManager')
             ->with($this->equalTo($name))

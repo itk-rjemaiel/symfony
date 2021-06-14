@@ -12,11 +12,14 @@
 namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
+use Symfony\Component\Form\Exception\InvalidConfigurationException;
 use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
 
 class TimeTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\TimeType';
+    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\TimeType';
 
     public function testSubmitDateTime()
     {
@@ -327,6 +330,54 @@ class TimeTypeTest extends BaseTypeTest
         $this->assertSame('14:09:10', $form->getData()->format('H:i:s'));
     }
 
+    public function testSubmitWithoutSecondsAndBrowserAddingSeconds()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'model_timezone' => 'UTC',
+            'view_timezone' => 'UTC',
+            'input' => 'string',
+            'widget' => 'single_text',
+            'with_seconds' => false,
+        ]);
+
+        $form->submit('03:04:00');
+
+        $this->assertEquals('03:04:00', $form->getData());
+        $this->assertEquals('03:04', $form->getViewData());
+    }
+
+    public function testSubmitWithSecondsAndBrowserAddingMicroseconds()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'model_timezone' => 'UTC',
+            'view_timezone' => 'UTC',
+            'input' => 'string',
+            'widget' => 'single_text',
+            'with_seconds' => true,
+        ]);
+
+        $form->submit('03:04:00.000');
+
+        $this->assertEquals('03:04:00', $form->getData());
+        $this->assertEquals('03:04:00', $form->getViewData());
+    }
+
+    public function testSubmitWithoutSecondsAndBrowserAddingMicroseconds()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'model_timezone' => 'UTC',
+            'view_timezone' => 'UTC',
+            'input' => 'string',
+            'widget' => 'single_text',
+            'with_seconds' => false,
+        ]);
+
+        $form->submit('03:04:00.000');
+
+        $this->assertEquals('03:04:00', $form->getData());
+        $this->assertEquals('03:04', $form->getViewData());
+    }
+
     public function testSetDataWithoutMinutes()
     {
         $form = $this->factory->create(static::TESTED_TYPE, null, [
@@ -612,7 +663,7 @@ class TimeTypeTest extends BaseTypeTest
     {
         // Throws an exception if "data_class" option is not explicitly set
         // to null in the type
-        $this->assertInstanceOf('Symfony\Component\Form\FormInterface', $this->factory->create(static::TESTED_TYPE, new \DateTime()));
+        $this->assertInstanceOf(FormInterface::class, $this->factory->create(static::TESTED_TYPE, new \DateTime()));
     }
 
     public function testSingleTextWidgetShouldUseTheRightInputType()
@@ -809,7 +860,7 @@ class TimeTypeTest extends BaseTypeTest
 
     public function testInitializeWithSecondsAndWithoutMinutes()
     {
-        $this->expectException('Symfony\Component\Form\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'with_minutes' => false,
             'with_seconds' => true,
@@ -818,7 +869,7 @@ class TimeTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfHoursIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'hours' => 'bad value',
         ]);
@@ -826,7 +877,7 @@ class TimeTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfMinutesIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'minutes' => 'bad value',
         ]);
@@ -834,7 +885,7 @@ class TimeTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfSecondsIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'seconds' => 'bad value',
         ]);
@@ -842,7 +893,7 @@ class TimeTypeTest extends BaseTypeTest
 
     public function testReferenceDateTimezoneMustMatchModelTimezone()
     {
-        $this->expectException('Symfony\Component\Form\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'model_timezone' => 'UTC',
             'view_timezone' => 'Europe/Berlin',
@@ -918,6 +969,28 @@ class TimeTypeTest extends BaseTypeTest
         $this->assertSame($expectedData, $form->getData());
     }
 
+    public function testArrayTimeWithReferenceDoesNotUseReferenceTimeOnZero()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'model_timezone' => 'UTC',
+            'view_timezone' => 'Europe/Berlin',
+            'reference_date' => new \DateTimeImmutable('01-01-2021 12:34:56', new \DateTimeZone('UTC')),
+            'input' => 'array',
+        ]);
+
+        $input = [
+            'hour' => '0',
+            'minute' => '0',
+        ];
+        $form->submit($input);
+
+        $this->assertEquals([
+            'hour' => '23',
+            'minute' => '0',
+        ], $form->getData());
+        $this->assertSame($input, $form->getViewData());
+    }
+
     /**
      * @dataProvider provideEmptyData
      */
@@ -929,6 +1002,9 @@ class TimeTypeTest extends BaseTypeTest
         ]);
         $form->submit(null);
 
+        if ($emptyData instanceof \Closure) {
+            $emptyData = $emptyData($form);
+        }
         $this->assertSame($emptyData, $form->getViewData());
         $this->assertEquals($expectedData, $form->getNormData());
         $this->assertEquals($expectedData, $form->getData());
@@ -937,11 +1013,17 @@ class TimeTypeTest extends BaseTypeTest
     public function provideEmptyData()
     {
         $expectedData = \DateTime::createFromFormat('Y-m-d H:i', '1970-01-01 21:23');
+        $lazyEmptyData = static function (FormInterface $form) {
+            return $form->getConfig()->getCompound() ? ['hour' => '21', 'minute' => '23'] : '21:23';
+        };
 
         return [
             'Simple field' => ['single_text', '21:23', $expectedData],
             'Compound text field' => ['text', ['hour' => '21', 'minute' => '23'], $expectedData],
             'Compound choice field' => ['choice', ['hour' => '21', 'minute' => '23'], $expectedData],
+            'Simple field lazy' => ['single_text', $lazyEmptyData, $expectedData],
+            'Compound text field lazy' => ['text', $lazyEmptyData, $expectedData],
+            'Compound choice field lazy' => ['choice', $lazyEmptyData, $expectedData],
         ];
     }
 }

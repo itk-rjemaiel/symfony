@@ -126,7 +126,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
 
     private $removedBindingIds = [];
 
-    private static $internalTypes = [
+    private const INTERNAL_TYPES = [
         'int' => true,
         'float' => true,
         'string' => true,
@@ -144,7 +144,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         parent::__construct($parameterBag);
 
-        $this->trackResources = interface_exists('Symfony\Component\Config\Resource\ResourceInterface');
+        $this->trackResources = interface_exists(ResourceInterface::class);
         $this->setDefinition('service_container', (new Definition(ContainerInterface::class))->setSynthetic(true)->setPublic(true));
         $this->setAlias(PsrContainerInterface::class, new Alias('service_container', false));
         $this->setAlias(ContainerInterface::class, new Alias('service_container', false));
@@ -214,7 +214,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return $this->extensionsByNs[$name];
         }
 
-        throw new LogicException(sprintf('Container extension "%s" is not registered', $name));
+        throw new LogicException(sprintf('Container extension "%s" is not registered.', $name));
     }
 
     /**
@@ -339,11 +339,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             return null;
         }
 
-        if (isset(self::$internalTypes[$class])) {
+        if (isset(self::INTERNAL_TYPES[$class])) {
             return null;
         }
 
-        $resource = null;
+        $resource = $classReflector = null;
 
         try {
             if (isset($this->classReflectors[$class])) {
@@ -358,12 +358,11 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if ($throw) {
                 throw $e;
             }
-            $classReflector = false;
         }
 
         if ($this->trackResources) {
             if (!$classReflector) {
-                $this->addResource($resource ?: new ClassExistenceResource($class, false));
+                $this->addResource($resource ?? new ClassExistenceResource($class, false));
             } elseif (!$classReflector->isInternal()) {
                 $path = $classReflector->getFileName();
 
@@ -493,7 +492,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     public function set($id, $service)
     {
         if (!\is_object($service) && null !== $service) {
-            @trigger_error(sprintf('Non-object services are deprecated since Symfony 4.4, setting the "%s" service to a value of type "%s" should be avoided.', $id, \gettype($service)), E_USER_DEPRECATED);
+            @trigger_error(sprintf('Non-object services are deprecated since Symfony 4.4, setting the "%s" service to a value of type "%s" should be avoided.', $id, \gettype($service)), \E_USER_DEPRECATED);
         }
 
         $id = (string) $id;
@@ -559,7 +558,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         $service = $this->doGet($id, $invalidBehavior);
 
         if (!\is_object($service) && null !== $service) {
-            @trigger_error(sprintf('Non-object services are deprecated since Symfony 4.4, please fix the "%s" service which is of type "%s" right now.', $id, \gettype($service)), E_USER_DEPRECATED);
+            @trigger_error(sprintf('Non-object services are deprecated since Symfony 4.4, please fix the "%s" service which is of type "%s" right now.', $id, \gettype($service)), \E_USER_DEPRECATED);
         }
 
         return $service;
@@ -591,7 +590,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             $alias = $this->aliasDefinitions[$id];
 
             if ($alias->isDeprecated()) {
-                @trigger_error($alias->getDeprecationMessage($id), E_USER_DEPRECATED);
+                @trigger_error($alias->getDeprecationMessage($id), \E_USER_DEPRECATED);
             }
 
             return $this->doGet((string) $alias, $invalidBehavior, $inlineServices, $isConstructorArgument);
@@ -840,7 +839,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         $alias = (string) $alias;
 
         if ('' === $alias || '\\' === $alias[-1] || \strlen($alias) !== strcspn($alias, "\0\r\n'")) {
-            throw new InvalidArgumentException(sprintf('Invalid alias id: "%s"', $alias));
+            throw new InvalidArgumentException(sprintf('Invalid alias id: "%s".', $alias));
         }
 
         if (\is_string($id)) {
@@ -990,13 +989,13 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     public function setDefinition($id, Definition $definition)
     {
         if ($this->isCompiled()) {
-            throw new BadMethodCallException('Adding definition to a compiled container is not allowed');
+            throw new BadMethodCallException('Adding definition to a compiled container is not allowed.');
         }
 
         $id = (string) $id;
 
         if ('' === $id || '\\' === $id[-1] || \strlen($id) !== strcspn($id, "\0\r\n'")) {
-            throw new InvalidArgumentException(sprintf('Invalid service id: "%s"', $id));
+            throw new InvalidArgumentException(sprintf('Invalid service id: "%s".', $id));
         }
 
         unset($this->aliasDefinitions[$id], $this->removedIds[$id]);
@@ -1093,7 +1092,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
 
         if ($definition->isDeprecated()) {
-            @trigger_error($definition->getDeprecationMessage($id), E_USER_DEPRECATED);
+            @trigger_error($definition->getDeprecationMessage($id), \E_USER_DEPRECATED);
         }
 
         if ($tryProxy && $definition->isLazy() && !$tryProxy = !($proxy = $this->proxyInstantiator) || $proxy instanceof RealServiceInstantiator) {
@@ -1121,7 +1120,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
             if (\is_array($factory)) {
                 $factory = [$this->doResolveServices($parameterBag->resolveValue($factory[0]), $inlineServices, $isConstructorArgument), $factory[1]];
             } elseif (!\is_string($factory)) {
-                throw new RuntimeException(sprintf('Cannot create service "%s" because of invalid factory', $id));
+                throw new RuntimeException(sprintf('Cannot create service "%s" because of invalid factory.', $id));
             }
         }
 
@@ -1136,16 +1135,16 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 $r = new \ReflectionClass($factory[0]);
 
                 if (0 < strpos($r->getDocComment(), "\n * @deprecated ")) {
-                    @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" factory class. It should either be deprecated or its factory upgraded.', $id, $r->name), E_USER_DEPRECATED);
+                    @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" factory class. It should either be deprecated or its factory upgraded.', $id, $r->name), \E_USER_DEPRECATED);
                 }
             }
         } else {
             $r = new \ReflectionClass($parameterBag->resolveValue($definition->getClass()));
 
-            $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs($arguments);
+            $service = null === $r->getConstructor() ? $r->newInstance() : $r->newInstanceArgs(array_values($arguments));
 
             if (!$definition->isDeprecated() && 0 < strpos($r->getDocComment(), "\n * @deprecated ")) {
-                @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" class. It should either be deprecated or its implementation upgraded.', $id, $r->name), E_USER_DEPRECATED);
+                @trigger_error(sprintf('The "%s" service relies on the deprecated "%s" class. It should either be deprecated or its implementation upgraded.', $id, $r->name), \E_USER_DEPRECATED);
             }
         }
 
@@ -1221,7 +1220,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                 return $this->resolveServices($reference);
             };
         } elseif ($value instanceof IteratorArgument) {
-            $value = new RewindableGenerator(function () use ($value) {
+            $value = new RewindableGenerator(function () use ($value, &$inlineServices) {
                 foreach ($value->getValues() as $k => $v) {
                     foreach (self::getServiceConditionals($v) as $s) {
                         if (!$this->has($s)) {
@@ -1229,14 +1228,14 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                         }
                     }
                     foreach (self::getInitializedConditionals($v) as $s) {
-                        if (!$this->doGet($s, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE)) {
+                        if (!$this->doGet($s, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $inlineServices)) {
                             continue 2;
                         }
                     }
 
-                    yield $k => $this->resolveServices($v);
+                    yield $k => $this->doResolveServices($v, $inlineServices);
                 }
-            }, function () use ($value) {
+            }, function () use ($value): int {
                 $count = 0;
                 foreach ($value->getValues() as $v) {
                     foreach (self::getServiceConditionals($v) as $s) {
@@ -1449,7 +1448,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
                         $completed = true;
                     } else {
                         if (!\is_string($resolved) && !is_numeric($resolved)) {
-                            throw new RuntimeException(sprintf('A string value must be composed of strings and/or numbers, but found parameter "env(%s)" of type %s inside string value "%s".', $env, \gettype($resolved), $this->resolveEnvPlaceholders($value)));
+                            throw new RuntimeException(sprintf('A string value must be composed of strings and/or numbers, but found parameter "env(%s)" of type "%s" inside string value "%s".', $env, \gettype($resolved), $this->resolveEnvPlaceholders($value)));
                         }
                         $value = str_ireplace($placeholder, $resolved, $value);
                     }
@@ -1512,7 +1511,7 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
     {
         if ($this->hasDefinition($id)) {
             foreach ($this->getDefinition($id)->getBindings() as $key => $binding) {
-                list(, $bindingId) = $binding->getValues();
+                [, $bindingId] = $binding->getValues();
                 $this->removedBindingIds[(int) $bindingId] = true;
             }
         }
@@ -1641,10 +1640,10 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         }
     }
 
-    private function getExpressionLanguage()
+    private function getExpressionLanguage(): ExpressionLanguage
     {
         if (null === $this->expressionLanguage) {
-            if (!class_exists('Symfony\Component\ExpressionLanguage\ExpressionLanguage')) {
+            if (!class_exists(\Symfony\Component\ExpressionLanguage\ExpressionLanguage::class)) {
                 throw new LogicException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
             }
             $this->expressionLanguage = new ExpressionLanguage(null, $this->expressionLanguageProviders);
@@ -1653,17 +1652,17 @@ class ContainerBuilder extends Container implements TaggedContainerInterface
         return $this->expressionLanguage;
     }
 
-    private function inVendors(string $path)
+    private function inVendors(string $path): bool
     {
         if (null === $this->vendors) {
-            $resource = new ComposerResource();
-            $this->vendors = $resource->getVendors();
-            $this->addResource($resource);
+            $this->vendors = (new ComposerResource())->getVendors();
         }
         $path = realpath($path) ?: $path;
 
         foreach ($this->vendors as $vendor) {
             if (0 === strpos($path, $vendor) && false !== strpbrk(substr($path, \strlen($vendor), 1), '/'.\DIRECTORY_SEPARATOR)) {
+                $this->addResource(new FileResource($vendor.'/composer/installed.json'));
+
                 return true;
             }
         }

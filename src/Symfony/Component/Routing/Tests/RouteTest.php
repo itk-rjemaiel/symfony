@@ -12,7 +12,10 @@
 namespace Symfony\Component\Routing\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Routing\CompiledRoute;
 use Symfony\Component\Routing\Route;
+use Symfony\Component\Routing\Tests\Fixtures\CustomCompiledRoute;
+use Symfony\Component\Routing\Tests\Fixtures\CustomRouteCompiler;
 
 class RouteTest extends TestCase
 {
@@ -47,6 +50,14 @@ class RouteTest extends TestCase
         $this->assertEquals($route, $route->setPath(''), '->setPath() implements a fluent interface');
         $route->setPath('//path');
         $this->assertEquals('/path', $route->getPath(), '->setPath() does not allow two slashes "//" at the beginning of the path as it would be confused with a network path when generating the path from the route');
+        $route->setPath('/path/{!foo}');
+        $this->assertEquals('/path/{!foo}', $route->getPath(), '->setPath() keeps ! to pass important params');
+        $route->setPath('/path/{bar<\w++>}');
+        $this->assertEquals('/path/{bar}', $route->getPath(), '->setPath() removes inline requirements');
+        $route->setPath('/path/{foo?value}');
+        $this->assertEquals('/path/{foo}', $route->getPath(), '->setPath() removes inline defaults');
+        $route->setPath('/path/{!bar<\d+>?value}');
+        $this->assertEquals('/path/{!bar}', $route->getPath(), '->setPath() removes all inline settings');
     }
 
     public function testOptions()
@@ -127,7 +138,7 @@ class RouteTest extends TestCase
      */
     public function testSetInvalidRequirement($req)
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $route = new Route('/{foo}');
         $route->setRequirement('foo', $req);
     }
@@ -186,7 +197,7 @@ class RouteTest extends TestCase
     public function testCompile()
     {
         $route = new Route('/{foo}');
-        $this->assertInstanceOf('Symfony\Component\Routing\CompiledRoute', $compiled = $route->compile(), '->compile() returns a compiled route');
+        $this->assertInstanceOf(CompiledRoute::class, $compiled = $route->compile(), '->compile() returns a compiled route');
         $this->assertSame($compiled, $route->compile(), '->compile() only compiled the route once if unchanged');
         $route->setRequirement('foo', '.*');
         $this->assertNotSame($compiled, $route->compile(), '->compile() recompiles if the route was modified');
@@ -208,15 +219,19 @@ class RouteTest extends TestCase
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', null), new Route('/foo/{bar?}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', 'baz'), new Route('/foo/{bar?baz}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', 'baz<buz>'), new Route('/foo/{bar?baz<buz>}'));
+        $this->assertEquals((new Route('/foo/{!bar}'))->setDefault('bar', 'baz<buz>'), new Route('/foo/{!bar?baz<buz>}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', 'baz'), new Route('/foo/{bar?}', ['bar' => 'baz']));
 
         $this->assertEquals((new Route('/foo/{bar}'))->setRequirement('bar', '.*'), new Route('/foo/{bar<.*>}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setRequirement('bar', '>'), new Route('/foo/{bar<>>}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setRequirement('bar', '\d+'), new Route('/foo/{bar<.*>}', [], ['bar' => '\d+']));
         $this->assertEquals((new Route('/foo/{bar}'))->setRequirement('bar', '[a-z]{2}'), new Route('/foo/{bar<[a-z]{2}>}'));
+        $this->assertEquals((new Route('/foo/{!bar}'))->setRequirement('bar', '\d+'), new Route('/foo/{!bar<\d+>}'));
 
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', null)->setRequirement('bar', '.*'), new Route('/foo/{bar<.*>?}'));
         $this->assertEquals((new Route('/foo/{bar}'))->setDefault('bar', '<>')->setRequirement('bar', '>'), new Route('/foo/{bar<>>?<>}'));
+
+        $this->assertEquals((new Route('/{foo}/{!bar}'))->setDefaults(['bar' => '<>', 'foo' => '\\'])->setRequirements(['bar' => '\\', 'foo' => '.']), new Route('/{foo<.>?\}/{!bar<\>?<>}'));
     }
 
     /**
@@ -242,13 +257,13 @@ class RouteTest extends TestCase
      */
     public function testSerializeWhenCompiledWithClass()
     {
-        $route = new Route('/', [], [], ['compiler_class' => '\Symfony\Component\Routing\Tests\Fixtures\CustomRouteCompiler']);
-        $this->assertInstanceOf('\Symfony\Component\Routing\Tests\Fixtures\CustomCompiledRoute', $route->compile(), '->compile() returned a proper route');
+        $route = new Route('/', [], [], ['compiler_class' => CustomRouteCompiler::class]);
+        $this->assertInstanceOf(CustomCompiledRoute::class, $route->compile(), '->compile() returned a proper route');
 
         $serialized = serialize($route);
         try {
             $unserialized = unserialize($serialized);
-            $this->assertInstanceOf('\Symfony\Component\Routing\Tests\Fixtures\CustomCompiledRoute', $unserialized->compile(), 'the unserialized route compiled successfully');
+            $this->assertInstanceOf(CustomCompiledRoute::class, $unserialized->compile(), 'the unserialized route compiled successfully');
         } catch (\Exception $e) {
             $this->fail('unserializing a route which uses a custom compiled route class');
         }
@@ -270,5 +285,66 @@ class RouteTest extends TestCase
 
         $this->assertEquals($route, $unserialized);
         $this->assertNotSame($route, $unserialized);
+    }
+
+    /**
+     * @dataProvider provideNonLocalizedRoutes
+     */
+    public function testLocaleDefaultWithNonLocalizedRoutes(Route $route)
+    {
+        $this->assertNotSame('fr', $route->getDefault('_locale'));
+        $route->setDefault('_locale', 'fr');
+        $this->assertSame('fr', $route->getDefault('_locale'));
+    }
+
+    /**
+     * @dataProvider provideLocalizedRoutes
+     */
+    public function testLocaleDefaultWithLocalizedRoutes(Route $route)
+    {
+        $expected = $route->getDefault('_locale');
+        $this->assertIsString($expected);
+        $this->assertNotSame('fr', $expected);
+        $route->setDefault('_locale', 'fr');
+        $this->assertSame($expected, $route->getDefault('_locale'));
+    }
+
+    /**
+     * @dataProvider provideNonLocalizedRoutes
+     */
+    public function testLocaleRequirementWithNonLocalizedRoutes(Route $route)
+    {
+        $this->assertNotSame('fr', $route->getRequirement('_locale'));
+        $route->setRequirement('_locale', 'fr');
+        $this->assertSame('fr', $route->getRequirement('_locale'));
+    }
+
+    /**
+     * @dataProvider provideLocalizedRoutes
+     */
+    public function testLocaleRequirementWithLocalizedRoutes(Route $route)
+    {
+        $expected = $route->getRequirement('_locale');
+        $this->assertIsString($expected);
+        $this->assertNotSame('fr', $expected);
+        $route->setRequirement('_locale', 'fr');
+        $this->assertSame($expected, $route->getRequirement('_locale'));
+    }
+
+    public function provideNonLocalizedRoutes()
+    {
+        return [
+            [(new Route('/foo'))],
+            [(new Route('/foo'))->setDefault('_locale', 'en')],
+            [(new Route('/foo'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'foo')],
+            [(new Route('/foo'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'foo')->setRequirement('_locale', 'foobar')],
+        ];
+    }
+
+    public function provideLocalizedRoutes()
+    {
+        return [
+            [(new Route('/foo'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'foo')->setRequirement('_locale', 'en')],
+        ];
     }
 }

@@ -27,17 +27,23 @@ use Twig\NodeVisitor\AbstractNodeVisitor;
  */
 class TranslationNodeVisitor extends AbstractNodeVisitor
 {
-    const UNDEFINED_DOMAIN = '_undefined';
+    public const UNDEFINED_DOMAIN = '_undefined';
 
     private $enabled = false;
     private $messages = [];
 
+    /**
+     * @return void
+     */
     public function enable()
     {
         $this->enabled = true;
         $this->messages = [];
     }
 
+    /**
+     * @return void
+     */
     public function disable()
     {
         $this->enabled = false;

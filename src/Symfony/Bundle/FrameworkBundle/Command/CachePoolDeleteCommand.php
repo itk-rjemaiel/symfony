@@ -46,7 +46,7 @@ final class CachePoolDeleteCommand extends Command
                 new InputArgument('pool', InputArgument::REQUIRED, 'The cache pool from which to delete an item'),
                 new InputArgument('key', InputArgument::REQUIRED, 'The cache key to delete from the pool'),
             ])
-            ->setDescription('Deletes an item from a cache pool')
+            ->setDescription('Delete an item from a cache pool')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> deletes an item from a given cache pool.
 
@@ -59,7 +59,7 @@ EOF
     /**
      * {@inheritdoc}
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
         $pool = $input->getArgument('pool');
@@ -69,7 +69,7 @@ EOF
         if (!$cachePool->hasItem($key)) {
             $io->note(sprintf('Cache item "%s" does not exist in cache pool "%s".', $key, $pool));
 
-            return;
+            return 0;
         }
 
         if (!$cachePool->deleteItem($key)) {
@@ -77,5 +77,7 @@ EOF
         }
 
         $io->success(sprintf('Cache item "%s" was successfully deleted.', $key));
+
+        return 0;
     }
 }

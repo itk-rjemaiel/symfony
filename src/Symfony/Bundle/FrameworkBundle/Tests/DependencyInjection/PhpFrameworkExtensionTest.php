@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\DependencyInjection;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
+use Symfony\Component\Workflow\Exception\InvalidDefinitionException;
 
 class PhpFrameworkExtensionTest extends FrameworkExtensionTest
 {
@@ -25,7 +26,7 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
 
     public function testAssetsCannotHavePathAndUrl()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [
                 'assets' => [
@@ -38,7 +39,7 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
 
     public function testAssetPackageCannotHavePathAndUrl()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [
                 'assets' => [
@@ -55,8 +56,8 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
 
     public function testWorkflowValidationStateMachine()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\InvalidDefinitionException');
-        $this->expectExceptionMessage('A transition from a place/state must have an unique name. Multiple transitions named "a_to_b" from place/state "a" where found on StateMachine "article".');
+        $this->expectException(InvalidDefinitionException::class);
+        $this->expectExceptionMessage('A transition from a place/state must have an unique name. Multiple transitions named "a_to_b" from place/state "a" were found on StateMachine "article".');
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [
                 'workflows' => [
@@ -157,7 +158,7 @@ class PhpFrameworkExtensionTest extends FrameworkExtensionTest
      */
     public function testWorkflowValidationSingleState()
     {
-        $this->expectException('Symfony\Component\Workflow\Exception\InvalidDefinitionException');
+        $this->expectException(InvalidDefinitionException::class);
         $this->expectExceptionMessage('The marking store of workflow "article" can not store many places. But the transition "a_to_b" has too many output (2). Only one is accepted.');
         $this->createContainerFromClosure(function ($container) {
             $container->loadFromExtension('framework', [

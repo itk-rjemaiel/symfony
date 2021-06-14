@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\HttpCache\Esi;
+use Symfony\Component\HttpKernel\HttpCache\HttpCache;
 
 class EsiTest extends TestCase
 {
@@ -155,7 +156,7 @@ class EsiTest extends TestCase
 
     public function testProcessWhenNoSrcInAnEsi()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $esi = new Esi();
 
         $request = Request::create('/');
@@ -193,7 +194,7 @@ class EsiTest extends TestCase
 
     public function testHandleWhenResponseIsNot200()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $esi = new Esi();
         $response = new Response('foo');
         $response->setStatusCode(404);
@@ -222,7 +223,7 @@ class EsiTest extends TestCase
 
     protected function getCache($request, $response)
     {
-        $cache = $this->getMockBuilder('Symfony\Component\HttpKernel\HttpCache\HttpCache')->setMethods(['getRequest', 'handle'])->disableOriginalConstructor()->getMock();
+        $cache = $this->getMockBuilder(HttpCache::class)->setMethods(['getRequest', 'handle'])->disableOriginalConstructor()->getMock();
         $cache->expects($this->any())
               ->method('getRequest')
               ->willReturn($request)

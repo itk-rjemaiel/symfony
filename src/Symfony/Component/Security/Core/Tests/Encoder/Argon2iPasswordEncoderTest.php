@@ -13,6 +13,7 @@ namespace Symfony\Component\Security\Core\Tests\Encoder;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
+use Symfony\Component\Security\Core\Exception\BadCredentialsException;
 
 /**
  * @author Zan Baldwin <hello@zanbaldwin.com>
@@ -21,7 +22,7 @@ use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
  */
 class Argon2iPasswordEncoderTest extends TestCase
 {
-    const PASSWORD = 'password';
+    private const PASSWORD = 'password';
 
     protected function setUp(): void
     {
@@ -48,7 +49,7 @@ class Argon2iPasswordEncoderTest extends TestCase
 
     public function testEncodePasswordLength()
     {
-        $this->expectException('Symfony\Component\Security\Core\Exception\BadCredentialsException');
+        $this->expectException(BadCredentialsException::class);
         $encoder = new Argon2iPasswordEncoder();
         $encoder->encodePassword(str_repeat('a', 4097), 'salt');
     }

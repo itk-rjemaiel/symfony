@@ -21,7 +21,7 @@ class LanguagesTest extends ResourceBundleTestCase
 {
     // The below arrays document the state of the ICU data bundled with this package.
 
-    private static $languages = [
+    private const LANGUAGES = [
         'aa',
         'ab',
         'ace',
@@ -45,7 +45,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'ang',
         'anp',
         'ar',
-        'ar_001',
         'arc',
         'arn',
         'aro',
@@ -64,7 +63,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'awa',
         'ay',
         'az',
-        'az_Arab',
         'ba',
         'bal',
         'ban',
@@ -124,6 +122,7 @@ class LanguagesTest extends ResourceBundleTestCase
         'chp',
         'chr',
         'chy',
+        'cic',
         'ckb',
         'co',
         'cop',
@@ -141,8 +140,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'dar',
         'dav',
         'de',
-        'de_AT',
-        'de_CH',
         'del',
         'den',
         'dgr',
@@ -167,23 +164,15 @@ class LanguagesTest extends ResourceBundleTestCase
         'el',
         'elx',
         'en',
-        'en_AU',
-        'en_CA',
-        'en_GB',
-        'en_US',
         'enm',
         'eo',
         'es',
-        'es_419',
-        'es_ES',
-        'es_MX',
         'esu',
         'et',
         'eu',
         'ewo',
         'ext',
         'fa',
-        'fa_AF',
         'fan',
         'fat',
         'ff',
@@ -194,8 +183,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'fo',
         'fon',
         'fr',
-        'fr_CA',
-        'fr_CH',
         'frc',
         'frm',
         'fro',
@@ -406,7 +393,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'nb',
         'nd',
         'nds',
-        'nds_NL',
         'ne',
         'new',
         'ng',
@@ -414,7 +400,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'niu',
         'njo',
         'nl',
-        'nl_BE',
         'nmg',
         'nn',
         'nnh',
@@ -462,8 +447,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'pro',
         'ps',
         'pt',
-        'pt_BR',
-        'pt_PT',
         'qu',
         'quc',
         'qug',
@@ -475,7 +458,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'rm',
         'rn',
         'ro',
-        'ro_MD',
         'rof',
         'rom',
         'rtm',
@@ -531,7 +513,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'sog',
         'sq',
         'sr',
-        'sr_ME',
         'srn',
         'srr',
         'ss',
@@ -544,7 +525,6 @@ class LanguagesTest extends ResourceBundleTestCase
         'sux',
         'sv',
         'sw',
-        'sw_CD',
         'swb',
         'syc',
         'syr',
@@ -633,14 +613,12 @@ class LanguagesTest extends ResourceBundleTestCase
         'zen',
         'zgh',
         'zh',
-        'zh_Hans',
-        'zh_Hant',
         'zu',
         'zun',
         'zza',
     ];
 
-    private static $alpha3Codes = [
+    private const ALPHA3_CODES = [
         'aar',
         'abk',
         'ace',
@@ -745,6 +723,7 @@ class LanguagesTest extends ResourceBundleTestCase
         'chu',
         'chv',
         'chy',
+        'cic',
         'ckb',
         'cop',
         'cor',
@@ -1240,7 +1219,7 @@ class LanguagesTest extends ResourceBundleTestCase
         'zza',
     ];
 
-    private static $alpha2ToAlpha3 = [
+    private const ALPHA2_TO_ALPHA3 = [
         'aa' => 'aar',
         'ab' => 'abk',
         'af' => 'afr',
@@ -1423,7 +1402,7 @@ class LanguagesTest extends ResourceBundleTestCase
         'zu' => 'zul',
     ];
 
-    private static $alpha3ToAlpha2 = [
+    private const ALPHA3_TO_ALPHA2 = [
         'aar' => 'aa',
         'abk' => 'ab',
         'ave' => 'ae',
@@ -1611,7 +1590,7 @@ class LanguagesTest extends ResourceBundleTestCase
 
     public function testGetLanguageCodes()
     {
-        $this->assertEquals(self::$languages, Languages::getLanguageCodes());
+        $this->assertEquals(self::LANGUAGES, Languages::getLanguageCodes());
     }
 
     /**
@@ -1624,10 +1603,10 @@ class LanguagesTest extends ResourceBundleTestCase
         sort($languages);
 
         $this->assertNotEmpty($languages);
-        $this->assertEmpty(array_diff($languages, self::$languages));
+        $this->assertEmpty(array_diff($languages, self::LANGUAGES));
 
         foreach (Languages::getAlpha3Names($displayLocale) as $alpha3Code => $name) {
-            $alpha2Code = self::$alpha3ToAlpha2[$alpha3Code] ?? null;
+            $alpha2Code = self::ALPHA3_TO_ALPHA2[$alpha3Code] ?? null;
             if (null !== $alpha2Code) {
                 $this->assertSame($name, $names[$alpha2Code]);
             }
@@ -1664,6 +1643,13 @@ class LanguagesTest extends ResourceBundleTestCase
         }
     }
 
+    public function testLocalizedGetName()
+    {
+        $this->assertSame('Australian English', Languages::getName('en_AU', 'en'));
+        $this->assertSame('Australian English', Languages::getName('en_AU_Zzzz', 'en'));
+        $this->assertSame('English', Languages::getName('en_ZZ', 'en'));
+    }
+
     public function testGetNameDefaultLocale()
     {
         \Locale::setDefault('de_AT');
@@ -1679,7 +1665,7 @@ class LanguagesTest extends ResourceBundleTestCase
     {
         return array_map(
             function ($value) { return [$value]; },
-            array_keys(self::$alpha2ToAlpha3)
+            array_keys(self::ALPHA2_TO_ALPHA3)
         );
     }
 
@@ -1688,14 +1674,14 @@ class LanguagesTest extends ResourceBundleTestCase
      */
     public function testGetAlpha3Code($language)
     {
-        $this->assertSame(self::$alpha2ToAlpha3[$language], Languages::getAlpha3Code($language));
+        $this->assertSame(self::ALPHA2_TO_ALPHA3[$language], Languages::getAlpha3Code($language));
     }
 
     public function provideLanguagesWithoutAlpha3Equivalent()
     {
         return array_map(
             function ($value) { return [$value]; },
-            array_diff(self::$languages, array_keys(self::$alpha2ToAlpha3))
+            array_diff(self::LANGUAGES, array_keys(self::ALPHA2_TO_ALPHA3))
         );
     }
 
@@ -1704,13 +1690,13 @@ class LanguagesTest extends ResourceBundleTestCase
      */
     public function testGetAlpha3CodeFailsIfNoAlpha3Equivalent($language)
     {
-        $this->expectException('Symfony\Component\Intl\Exception\MissingResourceException');
+        $this->expectException(MissingResourceException::class);
         Languages::getAlpha3Code($language);
     }
 
     public function testGetNameWithInvalidLanguageCode()
     {
-        $this->expectException('Symfony\Component\Intl\Exception\MissingResourceException');
+        $this->expectException(MissingResourceException::class);
         Languages::getName('foo');
     }
 
@@ -1722,14 +1708,14 @@ class LanguagesTest extends ResourceBundleTestCase
 
     public function testGetAlpha3Codes()
     {
-        $this->assertSame(self::$alpha3Codes, Languages::getAlpha3Codes());
+        $this->assertSame(self::ALPHA3_CODES, Languages::getAlpha3Codes());
     }
 
     public function provideLanguagesWithAlpha2Equivalent()
     {
         return array_map(
             function ($value) { return [$value]; },
-            array_keys(self::$alpha3ToAlpha2)
+            array_keys(self::ALPHA3_TO_ALPHA2)
         );
     }
 
@@ -1738,14 +1724,14 @@ class LanguagesTest extends ResourceBundleTestCase
      */
     public function testGetAlpha2Code($language)
     {
-        $this->assertSame(self::$alpha3ToAlpha2[$language], Languages::getAlpha2Code($language));
+        $this->assertSame(self::ALPHA3_TO_ALPHA2[$language], Languages::getAlpha2Code($language));
     }
 
     public function provideLanguagesWithoutAlpha2Equivalent()
     {
         return array_map(
             function ($value) { return [$value]; },
-            array_diff(self::$alpha3Codes, array_keys(self::$alpha3ToAlpha2))
+            array_diff(self::ALPHA3_CODES, array_keys(self::ALPHA3_TO_ALPHA2))
         );
     }
 
@@ -1754,7 +1740,7 @@ class LanguagesTest extends ResourceBundleTestCase
      */
     public function testGetAlpha2CodeFailsIfNoAlpha2Equivalent($language)
     {
-        $this->expectException('Symfony\Component\Intl\Exception\MissingResourceException');
+        $this->expectException(MissingResourceException::class);
         Languages::getAlpha2Code($language);
     }
 
@@ -1800,10 +1786,10 @@ class LanguagesTest extends ResourceBundleTestCase
         sort($languages);
 
         $this->assertNotEmpty($languages);
-        $this->assertEmpty(array_diff($languages, self::$alpha3Codes));
+        $this->assertEmpty(array_diff($languages, self::ALPHA3_CODES));
 
         foreach (Languages::getNames($displayLocale) as $alpha2Code => $name) {
-            $alpha3Code = self::$alpha2ToAlpha3[$alpha2Code] ?? (3 === \strlen($alpha2Code) ? $alpha2Code : null);
+            $alpha3Code = self::ALPHA2_TO_ALPHA3[$alpha2Code] ?? (3 === \strlen($alpha2Code) ? $alpha2Code : null);
             if (null !== $alpha3Code) {
                 $this->assertSame($name, $names[$alpha3Code]);
             }

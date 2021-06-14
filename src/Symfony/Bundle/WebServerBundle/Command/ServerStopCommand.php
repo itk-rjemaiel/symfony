@@ -48,7 +48,7 @@ class ServerStopCommand extends Command
             ->setDefinition([
                 new InputOption('pidfile', null, InputOption::VALUE_REQUIRED, 'PID file'),
             ])
-            ->setDescription('Stops the local web server that was started with the server:start command')
+            ->setDescription('Stop the local web server that was started with the server:start command')
             ->setHelp(<<<'EOF'
 <info>%command.name%</info> stops the local web server:
 
@@ -63,7 +63,7 @@ EOF
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        @trigger_error('Using the WebserverBundle is deprecated since Symfony 4.4. The new Symfony local server has more features, you can use it instead.', E_USER_DEPRECATED);
+        @trigger_error('Using the WebserverBundle is deprecated since Symfony 4.4. The new Symfony local server has more features, you can use it instead.', \E_USER_DEPRECATED);
 
         $io = new SymfonyStyle($input, $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output);
 
@@ -77,6 +77,6 @@ EOF
             return 1;
         }
 
-        return null;
+        return 0;
     }
 }

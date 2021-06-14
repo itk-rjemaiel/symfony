@@ -105,9 +105,20 @@ class XliffLintCommandTest extends TestCase
         $this->assertStringContainsString('[OK] All 1 XLIFF files contain valid syntax.', trim($tester->getDisplay()));
     }
 
+    public function testLintSucceedsWhenLocaleInFileAndInTargetLanguageNameUsesDashesInsteadOfUnderscores()
+    {
+        $tester = $this->createCommandTester();
+        $filename = $this->createFile('note', 'en-GB', 'messages.en-GB.xlf');
+
+        $tester->execute(['filename' => $filename], ['decorated' => false]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('[OK] All 1 XLIFF files contain valid syntax.', trim($tester->getDisplay()));
+    }
+
     public function testLintFileNotReadable()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $tester = $this->createCommandTester();
         $filename = $this->createFile();
         unlink($filename);
@@ -119,17 +130,6 @@ class XliffLintCommandTest extends TestCase
     {
         $command = new XliffLintCommand();
         $expected = <<<EOF
-The <info>%command.name%</info> command lints a XLIFF file and outputs to STDOUT
-the first encountered syntax error.
-
-You can validates XLIFF contents passed from STDIN:
-
-  <info>cat filename | php %command.full_name%</info>
-
-You can also validate the syntax of a file:
-
-  <info>php %command.full_name% filename</info>
-
 Or of a whole directory:
 
   <info>php %command.full_name% dirname</info>
@@ -137,7 +137,7 @@ Or of a whole directory:
 
 EOF;
 
-        $this->assertEquals($expected, $command->getHelp());
+        $this->assertStringContainsString($expected, $command->getHelp());
     }
 
     private function createFile($sourceContent = 'note', $targetLanguage = 'en', $fileNamePattern = 'messages.%locale%.xlf'): string

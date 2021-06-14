@@ -11,13 +11,14 @@
 
 namespace Symfony\Component\Finder\Tests;
 
+use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
 use Symfony\Component\Finder\Finder;
 
 class FinderTest extends Iterator\RealIteratorTestCase
 {
     public function testCreate()
     {
-        $this->assertInstanceOf('Symfony\Component\Finder\Finder', Finder::create());
+        $this->assertInstanceOf(Finder::class, Finder::create());
     }
 
     public function testDirectories()
@@ -631,7 +632,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
     {
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->sortByName());
-        $this->assertIterator($this->toAbsolute([
+        $this->assertOrderedIterator($this->toAbsolute([
             'foo',
             'foo bar',
             'foo/bar.tmp',
@@ -654,14 +655,12 @@ class FinderTest extends Iterator\RealIteratorTestCase
     {
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->sortByType());
-        $this->assertIterator($this->toAbsolute([
+        $this->assertOrderedIterator($this->toAbsolute([
             'foo',
-            'foo bar',
-            'toto',
-            'foo/bar.tmp',
-            'test.php',
-            'test.py',
             'qux',
+            'toto',
+            'foo bar',
+            'foo/bar.tmp',
             'qux/baz_100_1.py',
             'qux/baz_1_2.py',
             'qux_0_1.php',
@@ -670,6 +669,8 @@ class FinderTest extends Iterator\RealIteratorTestCase
             'qux_10_2.php',
             'qux_12_0.php',
             'qux_2_0.php',
+            'test.php',
+            'test.py',
         ]), $finder->in(self::$tmpDir)->getIterator());
     }
 
@@ -770,19 +771,19 @@ class FinderTest extends Iterator\RealIteratorTestCase
     {
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->sortByName(true));
-        $this->assertIterator($this->toAbsolute([
+        $this->assertOrderedIterator($this->toAbsolute([
             'foo',
-            'foo bar',
             'foo/bar.tmp',
+            'foo bar',
             'qux',
-            'qux/baz_100_1.py',
             'qux/baz_1_2.py',
+            'qux/baz_100_1.py',
             'qux_0_1.php',
-            'qux_1000_1.php',
-            'qux_1002_0.php',
+            'qux_2_0.php',
             'qux_10_2.php',
             'qux_12_0.php',
-            'qux_2_0.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
             'test.php',
             'test.py',
             'toto',
@@ -790,7 +791,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->sortByName(false));
-        $this->assertIterator($this->toAbsolute([
+        $this->assertOrderedIterator($this->toAbsolute([
             'foo',
             'foo bar',
             'foo/bar.tmp',
@@ -813,13 +814,10 @@ class FinderTest extends Iterator\RealIteratorTestCase
     {
         $finder = $this->buildFinder();
         $this->assertSame($finder, $finder->sort(function (\SplFileInfo $a, \SplFileInfo $b) { return strcmp($a->getRealPath(), $b->getRealPath()); }));
-        $this->assertIterator($this->toAbsolute([
+        $this->assertOrderedIterator($this->toAbsolute([
             'foo',
             'foo bar',
             'foo/bar.tmp',
-            'test.php',
-            'test.py',
-            'toto',
             'qux',
             'qux/baz_100_1.py',
             'qux/baz_1_2.py',
@@ -829,7 +827,43 @@ class FinderTest extends Iterator\RealIteratorTestCase
             'qux_10_2.php',
             'qux_12_0.php',
             'qux_2_0.php',
+            'test.php',
+            'test.py',
+            'toto',
         ]), $finder->in(self::$tmpDir)->getIterator());
+    }
+
+    public function testSortAcrossDirectories()
+    {
+        $finder = $this->buildFinder()
+            ->in([
+                self::$tmpDir,
+                self::$tmpDir.'/qux',
+                self::$tmpDir.'/foo',
+            ])
+            ->depth(0)
+            ->files()
+            ->filter(static function (\SplFileInfo $file): bool {
+                return '' !== $file->getExtension();
+            })
+            ->sort(static function (\SplFileInfo $a, \SplFileInfo $b): int {
+                return strcmp($a->getExtension(), $b->getExtension()) ?: strcmp($a->getFilename(), $b->getFilename());
+            })
+        ;
+
+        $this->assertOrderedIterator($this->toAbsolute([
+            'qux_0_1.php',
+            'qux_1000_1.php',
+            'qux_1002_0.php',
+            'qux_10_2.php',
+            'qux_12_0.php',
+            'qux_2_0.php',
+            'test.php',
+            'qux/baz_100_1.py',
+            'qux/baz_1_2.py',
+            'test.py',
+            'foo/bar.tmp',
+        ]), $finder->getIterator());
     }
 
     public function testFilter()
@@ -873,6 +907,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
         $expected = [
             self::$tmpDir.\DIRECTORY_SEPARATOR.'test.php',
+            __DIR__.\DIRECTORY_SEPARATOR.'ClassThatInheritFinder.php',
             __DIR__.\DIRECTORY_SEPARATOR.'GitignoreTest.php',
             __DIR__.\DIRECTORY_SEPARATOR.'FinderTest.php',
             __DIR__.\DIRECTORY_SEPARATOR.'GlobTest.php',
@@ -889,14 +924,14 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
     public function testInWithNonExistentDirectory()
     {
-        $this->expectException('Symfony\Component\Finder\Exception\DirectoryNotFoundException');
+        $this->expectException(DirectoryNotFoundException::class);
         $finder = new Finder();
         $finder->in('foobar');
     }
 
     public function testInWithNonExistentDirectoryLegacyException()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $finder = new Finder();
         $finder->in('foobar');
     }
@@ -911,7 +946,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
     public function testInWithNonDirectoryGlob()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $finder = new Finder();
         $finder->in(__DIR__.'/Fixtures/A/a*');
     }
@@ -930,7 +965,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
     public function testGetIteratorWithoutIn()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $finder = Finder::create();
         $finder->getIterator();
     }
@@ -1071,7 +1106,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
     public function testAppendReturnsAFinder()
     {
-        $this->assertInstanceOf('Symfony\\Component\\Finder\\Finder', Finder::create()->append([]));
+        $this->assertInstanceOf(Finder::class, Finder::create()->append([]));
     }
 
     public function testAppendDoesNotRequireIn()
@@ -1082,6 +1117,17 @@ class FinderTest extends Iterator\RealIteratorTestCase
         $finder1 = Finder::create()->append($finder);
 
         $this->assertIterator(iterator_to_array($finder->getIterator()), $finder1->getIterator());
+    }
+
+    public function testMultipleAppendCallsWithSorting()
+    {
+        $finder = $this->buildFinder()
+            ->sortByName()
+            ->append([self::$tmpDir.\DIRECTORY_SEPARATOR.'qux_1000_1.php'])
+            ->append([self::$tmpDir.\DIRECTORY_SEPARATOR.'qux_1002_0.php'])
+        ;
+
+        $this->assertOrderedIterator($this->toAbsolute(['qux_1000_1.php', 'qux_1002_0.php']), $finder->getIterator());
     }
 
     public function testCountDirectories()
@@ -1110,7 +1156,7 @@ class FinderTest extends Iterator\RealIteratorTestCase
 
     public function testCountWithoutIn()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $finder = Finder::create()->files();
         \count($finder);
     }
@@ -1433,16 +1479,5 @@ class FinderTest extends Iterator\RealIteratorTestCase
     protected function buildFinder()
     {
         return Finder::create();
-    }
-}
-
-class ClassThatInheritFinder extends Finder
-{
-    /**
-     * @return $this
-     */
-    public function sortByName()
-    {
-        parent::sortByName();
     }
 }

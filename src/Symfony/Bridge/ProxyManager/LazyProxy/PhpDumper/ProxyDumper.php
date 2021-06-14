@@ -11,9 +11,8 @@
 
 namespace Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper;
 
-use ProxyManager\Generator\ClassGenerator;
+use Laminas\Code\Generator\ClassGenerator;
 use ProxyManager\GeneratorStrategy\BaseGeneratorStrategy;
-use ProxyManager\Version;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\LazyProxy\PhpDumper\DumperInterface;
 
@@ -85,29 +84,9 @@ EOF;
     public function getProxyCode(Definition $definition): string
     {
         $code = $this->classGenerator->generate($this->generateProxyClass($definition));
-
-        if (version_compare(self::getProxyManagerVersion(), '2.2', '<')) {
-            $code = preg_replace(
-                '/((?:\$(?:this|initializer|instance)->)?(?:publicProperties|initializer|valueHolder))[0-9a-f]++/',
-                '${1}'.$this->getIdentifierSuffix($definition),
-                $code
-            );
-        }
-
-        if (version_compare(self::getProxyManagerVersion(), '2.5', '<')) {
-            $code = preg_replace('/ \\\\Closure::bind\(function ((?:& )?\(\$instance(?:, \$value)?\))/', ' \Closure::bind(static function \1', $code);
-        }
+        $code = preg_replace('/^(class [^ ]++ extends )([^\\\\])/', '$1\\\\$2', $code);
 
         return $code;
-    }
-
-    private static function getProxyManagerVersion(): string
-    {
-        if (!class_exists(Version::class)) {
-            return '0.0.1';
-        }
-
-        return \defined(Version::class.'::VERSION') ? Version::VERSION : Version::getVersion();
     }
 
     /**
@@ -125,8 +104,10 @@ EOF;
         $generatedClass = new ClassGenerator($this->getProxyClassName($definition));
         $class = $this->proxyGenerator->getProxifiedClass($definition);
 
-        $this->proxyGenerator->setFluentSafe($definition->hasTag('proxy'));
-        $this->proxyGenerator->generate(new \ReflectionClass($class), $generatedClass);
+        $this->proxyGenerator->generate(new \ReflectionClass($class), $generatedClass, [
+            'fluentSafe' => $definition->hasTag('proxy'),
+            'skipDestructor' => true,
+        ]);
 
         return $generatedClass;
     }

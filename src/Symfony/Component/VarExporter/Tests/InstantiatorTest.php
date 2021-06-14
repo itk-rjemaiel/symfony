@@ -12,13 +12,15 @@
 namespace Symfony\Component\VarExporter\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\VarExporter\Exception\ClassNotFoundException;
+use Symfony\Component\VarExporter\Exception\NotInstantiableTypeException;
 use Symfony\Component\VarExporter\Instantiator;
 
 class InstantiatorTest extends TestCase
 {
     public function testNotFoundClass()
     {
-        $this->expectException('Symfony\Component\VarExporter\Exception\ClassNotFoundException');
+        $this->expectException(ClassNotFoundException::class);
         $this->expectExceptionMessage('Class "SomeNotExistingClass" not found.');
         Instantiator::instantiate('SomeNotExistingClass');
     }
@@ -28,8 +30,8 @@ class InstantiatorTest extends TestCase
      */
     public function testFailingInstantiation(string $class)
     {
-        $this->expectException('Symfony\Component\VarExporter\Exception\NotInstantiableTypeException');
-        $this->expectExceptionMessageRegExp('/Type ".*" is not instantiable\./');
+        $this->expectException(NotInstantiableTypeException::class);
+        $this->expectExceptionMessageMatches('/Type ".*" is not instantiable\./');
         Instantiator::instantiate($class);
     }
 
@@ -53,7 +55,10 @@ class InstantiatorTest extends TestCase
             "\0".__NAMESPACE__."\Foo\0priv" => 234,
         ];
 
-        $this->assertSame($expected, (array) Instantiator::instantiate(Bar::class, ['priv' => 123], [Foo::class => ['priv' => 234]]));
+        $actual = (array) Instantiator::instantiate(Bar::class, ['priv' => 123], [Foo::class => ['priv' => 234]]);
+        ksort($actual);
+
+        $this->assertSame($expected, $actual);
 
         $e = Instantiator::instantiate('Exception', ['foo' => 123, 'trace' => [234]]);
 

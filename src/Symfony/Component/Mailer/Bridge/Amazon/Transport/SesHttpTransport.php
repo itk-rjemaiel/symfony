@@ -31,7 +31,7 @@ class SesHttpTransport extends AbstractHttpTransport
     private $region;
 
     /**
-     * @param string $region Amazon SES region (currently one of us-east-1, us-west-2, or eu-west-1)
+     * @param string|null $region Amazon SES region
      */
     public function __construct(string $accessKey, string $secretKey, string $region = null, HttpClientInterface $client = null, EventDispatcherInterface $dispatcher = null, LoggerInterface $logger = null)
     {
@@ -52,7 +52,7 @@ class SesHttpTransport extends AbstractHttpTransport
         $date = gmdate('D, d M Y H:i:s e');
         $auth = sprintf('AWS3-HTTPS AWSAccessKeyId=%s,Algorithm=HmacSHA256,Signature=%s', $this->accessKey, $this->getSignature($date));
 
-        $response = $this->client->request('POST', 'https://'.$this->getEndpoint(), [
+        $request = [
             'headers' => [
                 'X-Amzn-Authorization' => $auth,
                 'Date' => $date,
@@ -61,13 +61,20 @@ class SesHttpTransport extends AbstractHttpTransport
                 'Action' => 'SendRawEmail',
                 'RawMessage.Data' => base64_encode($message->toString()),
             ],
-        ]);
-
-        if (200 !== $response->getStatusCode()) {
-            $error = new \SimpleXMLElement($response->getContent(false));
-
-            throw new HttpTransportException(sprintf('Unable to send an email: %s (code %s).', $error->Error->Message, $error->Error->Code), $response);
+        ];
+        $index = 1;
+        foreach ($message->getEnvelope()->getRecipients() as $recipient) {
+            $request['body']['Destinations.member.'.$index++] = $recipient->getAddress();
         }
+
+        $response = $this->client->request('POST', 'https://'.$this->getEndpoint(), $request);
+
+        $result = new \SimpleXMLElement($response->getContent(false));
+        if (200 !== $response->getStatusCode()) {
+            throw new HttpTransportException('Unable to send an email: '.$result->Error->Message.sprintf(' (code %d).', $result->Error->Code), $response);
+        }
+
+        $message->setMessageId($result->SendRawEmailResult->MessageId);
 
         return $response;
     }

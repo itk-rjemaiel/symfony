@@ -220,7 +220,7 @@ class SecurityDataCollectorTest extends TestCase
     public function testGetListeners()
     {
         $request = new Request();
-        $event = new RequestEvent($this->getMockBuilder(HttpKernelInterface::class)->getMock(), $request, HttpKernelInterface::MASTER_REQUEST);
+        $event = new RequestEvent($this->createMock(HttpKernelInterface::class), $request, HttpKernelInterface::MASTER_REQUEST);
         $event->setResponse($response = new Response());
         $listener = function ($e) use ($event, &$listenerCalled) {
             $listenerCalled += $e === $event;
@@ -258,7 +258,6 @@ class SecurityDataCollectorTest extends TestCase
 
         $eventDispatcher = $this->getMockBuilder(EventDispatcherInterface::class)->getMockForAbstractClass();
         $decoratedVoter1 = new TraceableVoter($voter1, $eventDispatcher);
-        $decoratedVoter2 = new TraceableVoter($voter2, $eventDispatcher);
 
         yield [
             AccessDecisionManager::STRATEGY_AFFIRMATIVE,
@@ -346,7 +345,7 @@ class SecurityDataCollectorTest extends TestCase
      *
      * @dataProvider providerCollectDecisionLog
      */
-    public function testCollectDecisionLog(string $strategy, array $decisionLog, array $voters, array $expectedVoterClasses, array $expectedDecisionLog): void
+    public function testCollectDecisionLog(string $strategy, array $decisionLog, array $voters, array $expectedVoterClasses, array $expectedDecisionLog)
     {
         $accessDecisionManager = $this
             ->getMockBuilder(TraceableAccessDecisionManager::class)

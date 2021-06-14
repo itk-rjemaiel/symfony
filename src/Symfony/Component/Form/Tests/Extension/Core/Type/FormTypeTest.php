@@ -13,15 +13,19 @@ namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
 use Symfony\Component\Form\CallbackTransformer;
 use Symfony\Component\Form\DataMapperInterface;
+use Symfony\Component\Form\Exception\InvalidArgumentException;
 use Symfony\Component\Form\Exception\TransformationFailedException;
 use Symfony\Component\Form\Extension\Core\Type\CurrencyType;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Validator\ValidatorExtension;
+use Symfony\Component\Form\Form;
+use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\Tests\Fixtures\Author;
 use Symfony\Component\Form\Tests\Fixtures\FixedDataTransformer;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
 use Symfony\Component\PropertyAccess\PropertyPath;
 use Symfony\Component\Validator\Validation;
 
@@ -59,11 +63,11 @@ class FormTest_AuthorWithoutRefSetter
 
 class FormTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\FormType';
+    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\FormType';
 
     public function testCreateFormInstances()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\Form', $this->factory->create(static::TESTED_TYPE));
+        $this->assertInstanceOf(Form::class, $this->factory->create(static::TESTED_TYPE));
     }
 
     public function testPassRequiredAsOption()
@@ -149,28 +153,31 @@ class FormTypeTest extends BaseTypeTest
 
     public function testDataClassMayBeNull()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\FormBuilderInterface', $this->factory->createBuilder(static::TESTED_TYPE, null, [
+        $this->assertInstanceOf(
+            FormBuilderInterface::class, $this->factory->createBuilder(static::TESTED_TYPE, null, [
             'data_class' => null,
         ]));
     }
 
     public function testDataClassMayBeAbstractClass()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\FormBuilderInterface', $this->factory->createBuilder(static::TESTED_TYPE, null, [
+        $this->assertInstanceOf(
+            FormBuilderInterface::class, $this->factory->createBuilder(static::TESTED_TYPE, null, [
             'data_class' => 'Symfony\Component\Form\Tests\Fixtures\AbstractAuthor',
         ]));
     }
 
     public function testDataClassMayBeInterface()
     {
-        $this->assertInstanceOf('Symfony\Component\Form\FormBuilderInterface', $this->factory->createBuilder(static::TESTED_TYPE, null, [
+        $this->assertInstanceOf(
+            FormBuilderInterface::class, $this->factory->createBuilder(static::TESTED_TYPE, null, [
             'data_class' => 'Symfony\Component\Form\Tests\Fixtures\AuthorInterface',
         ]));
     }
 
     public function testDataClassMustBeValidClassOrInterface()
     {
-        $this->expectException('Symfony\Component\Form\Exception\InvalidArgumentException');
+        $this->expectException(InvalidArgumentException::class);
         $this->factory->createBuilder(static::TESTED_TYPE, null, [
             'data_class' => 'foobar',
         ]);
@@ -337,7 +344,7 @@ class FormTypeTest extends BaseTypeTest
 
     public function testAttributesException()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, ['attr' => '']);
     }
 
@@ -510,6 +517,16 @@ class FormTypeTest extends BaseTypeTest
         ]);
 
         $this->assertTrue($form->getConfig()->getErrorBubbling());
+    }
+
+    public function testErrorBubblingForCompoundFieldsIsDisabledByDefaultIfInheritDataIsEnabled()
+    {
+        $form = $this->factory->create(static::TESTED_TYPE, null, [
+            'compound' => true,
+            'inherit_data' => true,
+        ]);
+
+        $this->assertFalse($form->getConfig()->getErrorBubbling());
     }
 
     public function testPropertyPath()
@@ -728,6 +745,28 @@ class FormTypeTest extends BaseTypeTest
             ->createView();
 
         $this->assertEquals(['%parent_param%' => 'parent_value', '%override_param%' => 'child_value'], $view['child']->vars['help_translation_parameters']);
+    }
+
+    public function testErrorBubblingDoesNotSkipCompoundFieldsWithInheritDataConfigured()
+    {
+        $form = $this->factory->createNamedBuilder('form', self::TESTED_TYPE)
+            ->add(
+                $this->factory->createNamedBuilder('inherit_data_type', self::TESTED_TYPE, null, [
+                    'inherit_data' => true,
+                ])
+                ->add('child', self::TESTED_TYPE, [
+                    'compound' => false,
+                    'error_bubbling' => true,
+                ])
+            )
+            ->getForm();
+        $error = new FormError('error message');
+        $form->get('inherit_data_type')->get('child')->addError($error);
+
+        $this->assertCount(0, $form->getErrors());
+        $this->assertCount(1, $form->get('inherit_data_type')->getErrors());
+        $this->assertSame($error, $form->get('inherit_data_type')->getErrors()[0]);
+        $this->assertCount(0, $form->get('inherit_data_type')->get('child')->getErrors());
     }
 }
 

@@ -15,12 +15,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\ExpressionLanguage\Lexer;
 use Symfony\Component\ExpressionLanguage\Node;
 use Symfony\Component\ExpressionLanguage\Parser;
+use Symfony\Component\ExpressionLanguage\SyntaxError;
 
 class ParserTest extends TestCase
 {
     public function testParseWithInvalidName()
     {
-        $this->expectException('Symfony\Component\ExpressionLanguage\SyntaxError');
+        $this->expectException(SyntaxError::class);
         $this->expectExceptionMessage('Variable "foo" is not valid around position 1 for expression `foo`.');
         $lexer = new Lexer();
         $parser = new Parser([]);
@@ -29,7 +30,7 @@ class ParserTest extends TestCase
 
     public function testParseWithZeroInNames()
     {
-        $this->expectException('Symfony\Component\ExpressionLanguage\SyntaxError');
+        $this->expectException(SyntaxError::class);
         $this->expectExceptionMessage('Variable "foo" is not valid around position 1 for expression `foo`.');
         $lexer = new Lexer();
         $parser = new Parser([]);
@@ -52,6 +53,9 @@ class ParserTest extends TestCase
         $arguments->addElement(new Node\ConstantNode('arg1'));
         $arguments->addElement(new Node\ConstantNode(2));
         $arguments->addElement(new Node\ConstantNode(true));
+
+        $arrayNode = new Node\ArrayNode();
+        $arrayNode->addElement(new Node\NameNode('bar'));
 
         return [
             [
@@ -151,6 +155,36 @@ class ParserTest extends TestCase
                 'bar',
                 ['foo' => 'bar'],
             ],
+
+            // Operators collisions
+            [
+                new Node\BinaryNode(
+                    'in',
+                    new Node\GetAttrNode(
+                        new Node\NameNode('foo'),
+                        new Node\ConstantNode('not', true),
+                        new Node\ArgumentsNode(),
+                        Node\GetAttrNode::PROPERTY_CALL
+                    ),
+                    $arrayNode
+                ),
+                'foo.not in [bar]',
+                ['foo', 'bar'],
+            ],
+            [
+                new Node\BinaryNode(
+                    'or',
+                    new Node\UnaryNode('not', new Node\NameNode('foo')),
+                    new Node\GetAttrNode(
+                        new Node\NameNode('foo'),
+                        new Node\ConstantNode('not', true),
+                        new Node\ArgumentsNode(),
+                        Node\GetAttrNode::PROPERTY_CALL
+                    )
+                ),
+                'not foo or foo.not',
+                ['foo'],
+            ],
         ];
     }
 
@@ -164,7 +198,7 @@ class ParserTest extends TestCase
      */
     public function testParseWithInvalidPostfixData($expr, $names = [])
     {
-        $this->expectException('Symfony\Component\ExpressionLanguage\SyntaxError');
+        $this->expectException(SyntaxError::class);
         $lexer = new Lexer();
         $parser = new Parser([]);
         $parser->parse($lexer->tokenize($expr), $names);
@@ -194,7 +228,7 @@ class ParserTest extends TestCase
 
     public function testNameProposal()
     {
-        $this->expectException('Symfony\Component\ExpressionLanguage\SyntaxError');
+        $this->expectException(SyntaxError::class);
         $this->expectExceptionMessage('Did you mean "baz"?');
         $lexer = new Lexer();
         $parser = new Parser([]);

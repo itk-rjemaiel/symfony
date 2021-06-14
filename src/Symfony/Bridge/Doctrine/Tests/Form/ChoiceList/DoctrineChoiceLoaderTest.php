@@ -11,9 +11,9 @@
 
 namespace Symfony\Bridge\Doctrine\Tests\Form\ChoiceList;
 
-use Doctrine\Common\Persistence\ObjectManager;
-use Doctrine\Common\Persistence\ObjectRepository;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\Persistence\ObjectManager;
+use Doctrine\Persistence\ObjectRepository;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Doctrine\Form\ChoiceList\DoctrineChoiceLoader;
@@ -75,19 +75,17 @@ class DoctrineChoiceLoaderTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->factory = $this->getMockBuilder('Symfony\Component\Form\ChoiceList\Factory\ChoiceListFactoryInterface')->getMock();
-        $this->om = $this->getMockBuilder('Doctrine\Common\Persistence\ObjectManager')->getMock();
-        $this->repository = $this->getMockBuilder('Doctrine\Common\Persistence\ObjectRepository')->getMock();
+        $this->factory = $this->createMock(ChoiceListFactoryInterface::class);
+        $this->om = $this->createMock(ObjectManager::class);
+        $this->repository = $this->createMock(ObjectRepository::class);
         $this->class = 'stdClass';
-        $this->idReader = $this->getMockBuilder('Symfony\Bridge\Doctrine\Form\ChoiceList\IdReader')
-            ->disableOriginalConstructor()
-            ->getMock();
+        $this->idReader = $this->createMock(IdReader::class);
         $this->idReader->expects($this->any())
             ->method('isSingleId')
             ->willReturn(true)
         ;
 
-        $this->objectLoader = $this->getMockBuilder('Symfony\Bridge\Doctrine\Form\ChoiceList\EntityLoaderInterface')->getMock();
+        $this->objectLoader = $this->createMock(EntityLoaderInterface::class);
         $this->obj1 = (object) ['name' => 'A'];
         $this->obj2 = (object) ['name' => 'B'];
         $this->obj3 = (object) ['name' => 'C'];

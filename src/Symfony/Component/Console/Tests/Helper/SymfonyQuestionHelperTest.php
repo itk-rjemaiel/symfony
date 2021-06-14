@@ -2,9 +2,11 @@
 
 namespace Symfony\Component\Console\Tests\Helper;
 
+use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Helper\FormatterHelper;
 use Symfony\Component\Console\Helper\HelperSet;
 use Symfony\Component\Console\Helper\SymfonyQuestionHelper;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
@@ -124,10 +126,53 @@ class SymfonyQuestionHelperTest extends AbstractQuestionHelperTest
 
     public function testAskThrowsExceptionOnMissingInput()
     {
-        $this->expectException('Symfony\Component\Console\Exception\RuntimeException');
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Aborted.');
         $dialog = new SymfonyQuestionHelper();
         $dialog->ask($this->createStreamableInputInterfaceMock($this->getInputStream('')), $this->createOutputInterface(), new Question('What\'s your name?'));
+    }
+
+    public function testChoiceQuestionPadding()
+    {
+        $choiceQuestion = new ChoiceQuestion('qqq', [
+            'foo' => 'foo',
+            'żółw' => 'bar',
+            'łabądź' => 'baz',
+        ]);
+
+        (new SymfonyQuestionHelper())->ask(
+            $this->createStreamableInputInterfaceMock($this->getInputStream("foo\n")),
+            $output = $this->createOutputInterface(),
+            $choiceQuestion
+        );
+
+        $this->assertOutputContains(<<<EOT
+ qqq:
+  [foo   ] foo
+  [żółw  ] bar
+  [łabądź] baz
+ >
+EOT
+        , $output, true);
+    }
+
+    public function testChoiceQuestionCustomPrompt()
+    {
+        $choiceQuestion = new ChoiceQuestion('qqq', ['foo']);
+        $choiceQuestion->setPrompt(' >ccc> ');
+
+        (new SymfonyQuestionHelper())->ask(
+            $this->createStreamableInputInterfaceMock($this->getInputStream("foo\n")),
+            $output = $this->createOutputInterface(),
+            $choiceQuestion
+        );
+
+        $this->assertOutputContains(<<<EOT
+ qqq:
+  [0] foo
+ >ccc>
+EOT
+        , $output, true);
     }
 
     protected function getInputStream($input)
@@ -149,7 +194,7 @@ class SymfonyQuestionHelperTest extends AbstractQuestionHelperTest
 
     protected function createInputInterfaceMock($interactive = true)
     {
-        $mock = $this->getMockBuilder('Symfony\Component\Console\Input\InputInterface')->getMock();
+        $mock = $this->createMock(InputInterface::class);
         $mock->expects($this->any())
             ->method('isInteractive')
             ->willReturn($interactive);
@@ -157,10 +202,15 @@ class SymfonyQuestionHelperTest extends AbstractQuestionHelperTest
         return $mock;
     }
 
-    private function assertOutputContains($expected, StreamOutput $output)
+    private function assertOutputContains($expected, StreamOutput $output, $normalize = false)
     {
         rewind($output->getStream());
         $stream = stream_get_contents($output->getStream());
+
+        if ($normalize) {
+            $stream = str_replace(\PHP_EOL, "\n", $stream);
+        }
+
         $this->assertStringContainsString($expected, $stream);
     }
 }

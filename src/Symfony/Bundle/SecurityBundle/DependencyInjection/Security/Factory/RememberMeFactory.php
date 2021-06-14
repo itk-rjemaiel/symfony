@@ -69,7 +69,12 @@ class RememberMeFactory implements SecurityFactoryInterface
         }
 
         // remember-me options
-        $rememberMeServices->replaceArgument(3, array_intersect_key($config, $this->options));
+        $mergedOptions = array_intersect_key($config, $this->options);
+        if ('auto' === $mergedOptions['secure']) {
+            $mergedOptions['secure'] = null;
+        }
+
+        $rememberMeServices->replaceArgument(3, $mergedOptions);
 
         // attach to remember-me aware listeners
         $userProviders = [];
@@ -83,7 +88,11 @@ class RememberMeFactory implements SecurityFactoryInterface
                     throw new \RuntimeException('Each "security.remember_me_aware" tag must have a provider attribute.');
                 }
 
-                $userProviders[] = new Reference($attribute['provider']);
+                // context listeners don't need a provider
+                if ('none' !== $attribute['provider']) {
+                    $userProviders[] = new Reference($attribute['provider']);
+                }
+
                 $container
                     ->getDefinition($serviceId)
                     ->addMethodCall('setRememberMeServices', [new Reference($rememberMeServicesId)])
@@ -137,16 +146,18 @@ class RememberMeFactory implements SecurityFactoryInterface
                 ->end()
                 ->prototype('scalar')->end()
             ->end()
-            ->scalarNode('catch_exceptions')->defaultTrue()->end()
+            ->booleanNode('catch_exceptions')->defaultTrue()->end()
         ;
 
         foreach ($this->options as $name => $value) {
             if ('secure' === $name) {
                 $builder->enumNode($name)->values([true, false, 'auto'])->defaultValue('auto' === $value ? null : $value);
             } elseif ('samesite' === $name) {
-                $builder->enumNode($name)->values([null, Cookie::SAMESITE_LAX, Cookie::SAMESITE_STRICT])->defaultValue($value);
+                $builder->enumNode($name)->values([null, Cookie::SAMESITE_LAX, Cookie::SAMESITE_STRICT, Cookie::SAMESITE_NONE])->defaultValue($value);
             } elseif (\is_bool($value)) {
                 $builder->booleanNode($name)->defaultValue($value);
+            } elseif (\is_int($value)) {
+                $builder->integerNode($name)->defaultValue($value);
             } else {
                 $builder->scalarNode($name)->defaultValue($value);
             }

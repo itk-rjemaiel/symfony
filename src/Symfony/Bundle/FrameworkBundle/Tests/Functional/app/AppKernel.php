@@ -14,6 +14,7 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Functional\app;
 use Psr\Log\NullLogger;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -86,6 +87,12 @@ class AppKernel extends Kernel
 
     public function __wakeup()
     {
+        foreach ($this as $k => $v) {
+            if (\is_object($v)) {
+                throw new \BadMethodCallException('Cannot unserialize '.__CLASS__);
+            }
+        }
+
         $this->__construct($this->varDir, $this->testCase, $this->rootConfig, $this->environment, $this->debug);
     }
 
@@ -95,5 +102,14 @@ class AppKernel extends Kernel
         $parameters['kernel.test_case'] = $this->testCase;
 
         return $parameters;
+    }
+
+    public function getContainer(): ContainerInterface
+    {
+        if (!$this->container) {
+            throw new \LogicException('Cannot access the container on a non-booted kernel. Did you forget to boot it?');
+        }
+
+        return parent::getContainer();
     }
 }

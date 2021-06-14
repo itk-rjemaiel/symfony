@@ -14,6 +14,7 @@ namespace Symfony\Component\Debug\Tests\FatalErrorHandler;
 use Composer\Autoload\ClassLoader as ComposerClassLoader;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Debug\DebugClassLoader;
+use Symfony\Component\Debug\Exception\ClassNotFoundException;
 use Symfony\Component\Debug\Exception\FatalErrorException;
 use Symfony\Component\Debug\FatalErrorHandler\ClassNotFoundFatalErrorHandler;
 
@@ -32,10 +33,14 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
             // get class loaders wrapped by DebugClassLoader
             if ($function[0] instanceof DebugClassLoader) {
                 $function = $function[0]->getClassLoader();
+
+                if (!\is_array($function)) {
+                    continue;
+                }
             }
 
             if ($function[0] instanceof ComposerClassLoader) {
-                $function[0]->add('Symfony_Component_Debug_Tests_Fixtures', \dirname(\dirname(\dirname(\dirname(\dirname(__DIR__))))));
+                $function[0]->add('Symfony_Component_Debug_Tests_Fixtures', \dirname(__DIR__, 5));
                 break;
             }
         }
@@ -63,8 +68,8 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
             array_map('spl_autoload_register', $autoloaders);
         }
 
-        $this->assertInstanceOf('Symfony\Component\Debug\Exception\ClassNotFoundException', $exception);
-        $this->assertSame($translatedMessage, $exception->getMessage());
+        $this->assertInstanceOf(ClassNotFoundException::class, $exception);
+        $this->assertMatchesRegularExpression($translatedMessage, $exception->getMessage());
         $this->assertSame($error['type'], $exception->getSeverity());
         $this->assertSame($error['file'], $exception->getFile());
         $this->assertSame($error['line'], $exception->getLine());
@@ -84,9 +89,18 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'type' => 1,
                     'line' => 12,
                     'file' => 'foo.php',
+                    'message' => 'Class "WhizBangFactory" not found',
+                ],
+                "/^Attempted to load class \"WhizBangFactory\" from the global namespace.\nDid you forget a \"use\" statement\?$/",
+            ],
+            [
+                [
+                    'type' => 1,
+                    'line' => 12,
+                    'file' => 'foo.php',
                     'message' => 'Class \'WhizBangFactory\' not found',
                 ],
-                "Attempted to load class \"WhizBangFactory\" from the global namespace.\nDid you forget a \"use\" statement?",
+                "/^Attempted to load class \"WhizBangFactory\" from the global namespace.\nDid you forget a \"use\" statement\?$/",
             ],
             [
                 [
@@ -95,7 +109,34 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'Foo\\Bar\\WhizBangFactory\' not found',
                 ],
-                "Attempted to load class \"WhizBangFactory\" from namespace \"Foo\\Bar\".\nDid you forget a \"use\" statement for another namespace?",
+                "/^Attempted to load class \"WhizBangFactory\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for another namespace\?$/",
+            ],
+            [
+                [
+                    'type' => 1,
+                    'line' => 12,
+                    'file' => 'foo.php',
+                    'message' => 'Class "Foo\\Bar\\WhizBangFactory" not found',
+                ],
+                "/^Attempted to load class \"WhizBangFactory\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for another namespace\?$/",
+            ],
+            [
+                [
+                    'type' => 1,
+                    'line' => 12,
+                    'file' => 'foo.php',
+                    'message' => 'Interface "Foo\\Bar\\WhizBangInterface" not found',
+                ],
+                "/^Attempted to load interface \"WhizBangInterface\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for another namespace\?$/",
+            ],
+            [
+                [
+                    'type' => 1,
+                    'line' => 12,
+                    'file' => 'foo.php',
+                    'message' => 'Trait "Foo\\Bar\\WhizBangTrait" not found',
+                ],
+                "/^Attempted to load trait \"WhizBangTrait\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for another namespace\?$/",
             ],
             [
                 [
@@ -104,7 +145,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'UndefinedFunctionException\' not found',
                 ],
-                "Attempted to load class \"UndefinedFunctionException\" from the global namespace.\nDid you forget a \"use\" statement for \"Symfony\Component\Debug\Exception\UndefinedFunctionException\"?",
+                "/^Attempted to load class \"UndefinedFunctionException\" from the global namespace.\nDid you forget a \"use\" statement for .*\"Symfony\\\\Component\\\\Debug\\\\Exception\\\\UndefinedFunctionException\"\?$/",
                 [$debugClassLoader, 'loadClass'],
             ],
             [
@@ -114,7 +155,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'PEARClass\' not found',
                 ],
-                "Attempted to load class \"PEARClass\" from the global namespace.\nDid you forget a \"use\" statement for \"Symfony_Component_Debug_Tests_Fixtures_PEARClass\"?",
+                "/^Attempted to load class \"PEARClass\" from the global namespace.\nDid you forget a \"use\" statement for \"Symfony_Component_Debug_Tests_Fixtures_PEARClass\"\?$/",
                 [$debugClassLoader, 'loadClass'],
             ],
             [
@@ -124,7 +165,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'Foo\\Bar\\UndefinedFunctionException\' not found',
                 ],
-                "Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\Bar\".\nDid you forget a \"use\" statement for \"Symfony\Component\Debug\Exception\UndefinedFunctionException\"?",
+                "/^Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for .*\"Symfony\\\\Component\\\\Debug\\\\Exception\\\\UndefinedFunctionException\"\?$/",
                 [$debugClassLoader, 'loadClass'],
             ],
             [
@@ -134,7 +175,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'Foo\\Bar\\UndefinedFunctionException\' not found',
                 ],
-                "Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\Bar\".\nDid you forget a \"use\" statement for \"Symfony\Component\Debug\Exception\UndefinedFunctionException\"?",
+                "/^Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for \"Symfony\\\\Component\\\\Debug\\\\Exception\\\\UndefinedFunctionException\"\?$/",
                 [$autoloader, 'loadClass'],
             ],
             [
@@ -144,7 +185,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'Foo\\Bar\\UndefinedFunctionException\' not found',
                 ],
-                "Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\Bar\".\nDid you forget a \"use\" statement for \"Symfony\Component\Debug\Exception\UndefinedFunctionException\"?",
+                "/^Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for \"Symfony\\\\Component\\\\Debug\\\\Exception\\\\UndefinedFunctionException\"\?/",
                 [$debugClassLoader, 'loadClass'],
             ],
             [
@@ -154,7 +195,7 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
                     'file' => 'foo.php',
                     'message' => 'Class \'Foo\\Bar\\UndefinedFunctionException\' not found',
                 ],
-                "Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\\Bar\".\nDid you forget a \"use\" statement for another namespace?",
+                "/^Attempted to load class \"UndefinedFunctionException\" from namespace \"Foo\\\\Bar\".\nDid you forget a \"use\" statement for another namespace\?$/",
                 function ($className) { /* do nothing here */ },
             ],
         ];
@@ -178,6 +219,6 @@ class ClassNotFoundFatalErrorHandlerTest extends TestCase
         $handler = new ClassNotFoundFatalErrorHandler();
         $exception = $handler->handleError($error, new FatalErrorException('', 0, $error['type'], $error['file'], $error['line']));
 
-        $this->assertInstanceOf('Symfony\Component\Debug\Exception\ClassNotFoundException', $exception);
+        $this->assertInstanceOf(ClassNotFoundException::class, $exception);
     }
 }

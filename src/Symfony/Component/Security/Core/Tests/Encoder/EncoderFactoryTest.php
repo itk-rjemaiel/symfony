@@ -15,6 +15,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Encoder\EncoderAwareInterface;
 use Symfony\Component\Security\Core\Encoder\EncoderFactory;
 use Symfony\Component\Security\Core\Encoder\MessageDigestPasswordEncoder;
+use Symfony\Component\Security\Core\Encoder\MigratingPasswordEncoder;
+use Symfony\Component\Security\Core\Encoder\NativePasswordEncoder;
+use Symfony\Component\Security\Core\Encoder\SodiumPasswordEncoder;
 use Symfony\Component\Security\Core\User\User;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -27,7 +30,7 @@ class EncoderFactoryTest extends TestCase
             'arguments' => ['sha512', true, 5],
         ]]);
 
-        $encoder = $factory->getEncoder($this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock());
+        $encoder = $factory->getEncoder($this->createMock(UserInterface::class));
         $expectedEncoder = new MessageDigestPasswordEncoder('sha512', true, 5);
 
         $this->assertEquals($expectedEncoder->encodePassword('foo', 'moo'), $encoder->encodePassword('foo', 'moo'));
@@ -39,7 +42,7 @@ class EncoderFactoryTest extends TestCase
             'Symfony\Component\Security\Core\User\UserInterface' => new MessageDigestPasswordEncoder('sha1'),
         ]);
 
-        $encoder = $factory->getEncoder($this->getMockBuilder('Symfony\Component\Security\Core\User\UserInterface')->getMock());
+        $encoder = $factory->getEncoder($this->createMock(UserInterface::class));
         $expectedEncoder = new MessageDigestPasswordEncoder('sha1');
         $this->assertEquals($expectedEncoder->encodePassword('foo', ''), $encoder->encodePassword('foo', ''));
 
@@ -109,7 +112,7 @@ class EncoderFactoryTest extends TestCase
 
     public function testGetInvalidNamedEncoderForEncoderAware()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $factory = new EncoderFactory([
             'Symfony\Component\Security\Core\Tests\Encoder\EncAwareUser' => new MessageDigestPasswordEncoder('sha1'),
             'encoder_name' => new MessageDigestPasswordEncoder('sha256'),
@@ -117,7 +120,7 @@ class EncoderFactoryTest extends TestCase
 
         $user = new EncAwareUser('user', 'pass');
         $user->encoderName = 'invalid_encoder_name';
-        $encoder = $factory->getEncoder($user);
+        $factory->getEncoder($user);
     }
 
     public function testGetEncoderForEncoderAwareWithClassName()
@@ -130,6 +133,48 @@ class EncoderFactoryTest extends TestCase
         $encoder = $factory->getEncoder('Symfony\Component\Security\Core\Tests\Encoder\EncAwareUser');
         $expectedEncoder = new MessageDigestPasswordEncoder('sha1');
         $this->assertEquals($expectedEncoder->encodePassword('foo', ''), $encoder->encodePassword('foo', ''));
+    }
+
+    public function testMigrateFrom()
+    {
+        if (!SodiumPasswordEncoder::isSupported()) {
+            $this->markTestSkipped('Sodium is not available');
+        }
+
+        $factory = new EncoderFactory([
+            'digest_encoder' => $digest = new MessageDigestPasswordEncoder('sha256'),
+            SomeUser::class => ['algorithm' => 'sodium', 'migrate_from' => ['bcrypt', 'digest_encoder']],
+        ]);
+
+        $encoder = $factory->getEncoder(SomeUser::class);
+        $this->assertInstanceOf(MigratingPasswordEncoder::class, $encoder);
+
+        $this->assertTrue($encoder->isPasswordValid((new SodiumPasswordEncoder())->encodePassword('foo', null), 'foo', null));
+        $this->assertTrue($encoder->isPasswordValid((new NativePasswordEncoder(null, null, null, \PASSWORD_BCRYPT))->encodePassword('foo', null), 'foo', null));
+        $this->assertTrue($encoder->isPasswordValid($digest->encodePassword('foo', null), 'foo', null));
+        $this->assertStringStartsWith(\SODIUM_CRYPTO_PWHASH_STRPREFIX, $encoder->encodePassword('foo', null));
+    }
+
+    public function testDefaultMigratingEncoders()
+    {
+        $this->assertInstanceOf(
+            MigratingPasswordEncoder::class,
+            (new EncoderFactory([SomeUser::class => ['class' => NativePasswordEncoder::class, 'arguments' => []]]))->getEncoder(SomeUser::class)
+        );
+
+        $this->assertInstanceOf(
+            MigratingPasswordEncoder::class,
+            (new EncoderFactory([SomeUser::class => ['algorithm' => 'bcrypt', 'cost' => 11]]))->getEncoder(SomeUser::class)
+        );
+
+        if (!SodiumPasswordEncoder::isSupported()) {
+            return;
+        }
+
+        $this->assertInstanceOf(
+            MigratingPasswordEncoder::class,
+            (new EncoderFactory([SomeUser::class => ['class' => SodiumPasswordEncoder::class, 'arguments' => []]]))->getEncoder(SomeUser::class)
+        );
     }
 }
 

@@ -17,6 +17,7 @@ use Symfony\Component\Validator\Constraints\NotNull;
 use Symfony\Component\Validator\Constraints\Optional;
 use Symfony\Component\Validator\Constraints\Range;
 use Symfony\Component\Validator\Constraints\Required;
+use Symfony\Component\Validator\Exception\UnexpectedValueException;
 use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
 
 abstract class CollectionValidatorTest extends ConstraintValidatorTestCase
@@ -54,7 +55,7 @@ abstract class CollectionValidatorTest extends ConstraintValidatorTestCase
 
     public function testThrowsExceptionIfNotTraversable()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\UnexpectedValueException');
+        $this->expectException(UnexpectedValueException::class);
         $this->validator->validate('foobar', new Collection(['fields' => [
             'foo' => new Range(['min' => 4]),
         ]]));
@@ -127,6 +128,29 @@ abstract class CollectionValidatorTest extends ConstraintValidatorTestCase
         ]);
 
         $this->expectValidateValueAt(0, '[foo]', $data['foo'], [$constraint]);
+
+        $this->validator->validate($data, new Collection([
+            'fields' => [
+                'foo' => $constraint,
+            ],
+            'extraFieldsMessage' => 'myMessage',
+        ]));
+
+        $this->buildViolation('myMessage')
+            ->setParameter('{{ field }}', '"baz"')
+            ->atPath('property.path[baz]')
+            ->setInvalidValue(6)
+            ->setCode(Collection::NO_SUCH_FIELD_ERROR)
+            ->assertRaised();
+    }
+
+    public function testExtraFieldsDisallowedWithOptionalValues()
+    {
+        $constraint = new Optional();
+
+        $data = $this->prepareTestData([
+            'baz' => 6,
+        ]);
 
         $this->validator->validate($data, new Collection([
             'fields' => [

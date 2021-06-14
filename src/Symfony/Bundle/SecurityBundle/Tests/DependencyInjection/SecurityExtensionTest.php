@@ -16,6 +16,7 @@ use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\SecurityBundle\Tests\DependencyInjection\Fixtures\UserProvider\DummyProvider;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
@@ -26,7 +27,7 @@ class SecurityExtensionTest extends TestCase
 {
     public function testInvalidCheckPath()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('The check_path "/some_area/login_check" for login method "form_login" is not matched by the firewall pattern "/secured_area/.*".');
         $container = $this->getRawContainer();
 
@@ -50,7 +51,7 @@ class SecurityExtensionTest extends TestCase
 
     public function testFirewallWithoutAuthenticationListener()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('No authentication listener registered for firewall "some_firewall"');
         $container = $this->getRawContainer();
 
@@ -71,7 +72,7 @@ class SecurityExtensionTest extends TestCase
 
     public function testFirewallWithInvalidUserProvider()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('Unable to create definition for "security.user.provider.concrete.my_foo" user provider');
         $container = $this->getRawContainer();
 
@@ -190,7 +191,7 @@ class SecurityExtensionTest extends TestCase
 
     public function testMissingProviderForListener()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('Not configuring explicitly the provider for the "http_basic" listener on "ambiguous" firewall is ambiguous as there is more than one registered provider.');
         $container = $this->getRawContainer();
         $container->loadFromExtension('security', [
@@ -210,7 +211,7 @@ class SecurityExtensionTest extends TestCase
         $container->compile();
     }
 
-    public function testPerListenerProviderWithRememberMe()
+    public function testPerListenerProviderWithRememberMeAndAnonymous()
     {
         $container = $this->getRawContainer();
         $container->loadFromExtension('security', [
@@ -223,6 +224,7 @@ class SecurityExtensionTest extends TestCase
                 'default' => [
                     'form_login' => ['provider' => 'second'],
                     'remember_me' => ['secret' => 'baz'],
+                    'anonymous' => true,
                 ],
             ],
         ]);
@@ -387,6 +389,80 @@ class SecurityExtensionTest extends TestCase
                 true,
             ],
         ];
+    }
+
+    public function testSwitchUserWithSeveralDefinedProvidersButNoFirewallRootProviderConfigured()
+    {
+        $container = $this->getRawContainer();
+        $container->loadFromExtension('security', [
+            'providers' => [
+                'first' => ['id' => 'foo'],
+                'second' => ['id' => 'bar'],
+            ],
+
+            'firewalls' => [
+                'foobar' => [
+                    'switch_user' => [
+                        'provider' => 'second',
+                    ],
+                    'anonymous' => true,
+                ],
+            ],
+        ]);
+
+        $container->compile();
+
+        $this->assertEquals(new Reference('security.user.provider.concrete.second'), $container->getDefinition('security.authentication.switchuser_listener.foobar')->getArgument(1));
+    }
+
+    public function testInvalidAccessControlWithEmptyRow()
+    {
+        $container = $this->getRawContainer();
+
+        $container->loadFromExtension('security', [
+            'providers' => [
+                'default' => ['id' => 'foo'],
+            ],
+            'firewalls' => [
+                'some_firewall' => [
+                    'pattern' => '/.*',
+                    'http_basic' => [],
+                ],
+            ],
+            'access_control' => [
+                [],
+                ['path' => '/admin', 'roles' => 'ROLE_ADMIN'],
+            ],
+        ]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('One or more access control items are empty. Did you accidentally add lines only containing a "-" under "security.access_control"?');
+        $container->compile();
+    }
+
+    public function testValidAccessControlWithEmptyRow()
+    {
+        $container = $this->getRawContainer();
+
+        $container->loadFromExtension('security', [
+            'providers' => [
+                'default' => ['id' => 'foo'],
+            ],
+            'firewalls' => [
+                'some_firewall' => [
+                    'pattern' => '/.*',
+                    'http_basic' => [],
+                ],
+            ],
+            'access_control' => [
+                ['path' => '^/login'],
+                ['path' => '^/', 'roles' => 'ROLE_USER'],
+            ],
+        ]);
+
+        $container->compile();
+
+        $this->assertTrue(true, 'extension throws an InvalidConfigurationException if there is one more more empty access control items');
     }
 
     protected function getRawContainer()

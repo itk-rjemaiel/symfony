@@ -33,7 +33,7 @@ class IsbnValidator extends ConstraintValidator
     public function validate($value, Constraint $constraint)
     {
         if (!$constraint instanceof Isbn) {
-            throw new UnexpectedTypeException($constraint, __NAMESPACE__.'\Isbn');
+            throw new UnexpectedTypeException($constraint, Isbn::class);
         }
 
         if (null === $value || '' === $value) {
@@ -163,8 +163,7 @@ class IsbnValidator extends ConstraintValidator
         }
 
         for ($i = 1; $i < 12; $i += 2) {
-            $checkSum += $isbn[$i]
-            * 3;
+            $checkSum += $isbn[$i] * 3;
         }
 
         return 0 === $checkSum % 10 ? true : Isbn::CHECKSUM_FAILED_ERROR;

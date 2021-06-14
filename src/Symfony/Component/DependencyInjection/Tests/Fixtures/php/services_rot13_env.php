@@ -18,7 +18,6 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
 {
     private $parameters = [];
-    private $targetDirs = [];
     private $getService;
 
     public function __construct()
@@ -48,7 +47,7 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
     public function getRemovedIds(): array
     {
         return [
-            '.service_locator.GU08LT9' => true,
+            '.service_locator.ZZqL6HL' => true,
             'Psr\\Container\\ContainerInterface' => true,
             'Symfony\\Component\\DependencyInjection\\ContainerInterface' => true,
         ];
@@ -78,6 +77,9 @@ class Symfony_DI_PhpDumper_Test_Rot13Parameters extends Container
         ]);
     }
 
+    /**
+     * @return array|bool|float|int|string|null
+     */
     public function getParameter($name)
     {
         $name = (string) $name;

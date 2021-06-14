@@ -13,6 +13,7 @@ namespace Symfony\Bridge\Twig\Tests\Extension;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Twig\Extension\StopwatchExtension;
+use Symfony\Component\Stopwatch\Stopwatch;
 use Twig\Environment;
 use Twig\Error\RuntimeError;
 use Twig\Loader\ArrayLoader;
@@ -21,7 +22,7 @@ class StopwatchExtensionTest extends TestCase
 {
     public function testFailIfStoppingWrongEvent()
     {
-        $this->expectException('Twig\Error\SyntaxError');
+        $this->expectException(\Twig\Error\SyntaxError::class);
         $this->testTiming('{% stopwatch "foo" %}{% endstopwatch "bar" %}', []);
     }
 
@@ -34,7 +35,7 @@ class StopwatchExtensionTest extends TestCase
         $twig->addExtension(new StopwatchExtension($this->getStopwatch($events)));
 
         try {
-            $nodes = $twig->render('template');
+            $twig->render('template');
         } catch (RuntimeError $e) {
             throw $e->getPrevious();
         }
@@ -55,19 +56,23 @@ class StopwatchExtensionTest extends TestCase
     protected function getStopwatch($events = [])
     {
         $events = \is_array($events) ? $events : [$events];
-        $stopwatch = $this->getMockBuilder('Symfony\Component\Stopwatch\Stopwatch')->getMock();
+        $stopwatch = $this->createMock(Stopwatch::class);
 
-        $i = -1;
+        $expectedCalls = 0;
+        $expectedStartCalls = [];
+        $expectedStopCalls = [];
         foreach ($events as $eventName) {
-            $stopwatch->expects($this->at(++$i))
-                ->method('start')
-                ->with($this->equalTo($eventName), 'template')
-            ;
-            $stopwatch->expects($this->at(++$i))
-                ->method('stop')
-                ->with($this->equalTo($eventName))
-            ;
+            ++$expectedCalls;
+            $expectedStartCalls[] = [$this->equalTo($eventName), 'template'];
+            $expectedStopCalls[] = [$this->equalTo($eventName)];
         }
+
+        $startInvocationMocker = $stopwatch->expects($this->exactly($expectedCalls))
+            ->method('start');
+        \call_user_func_array([$startInvocationMocker, 'withConsecutive'], $expectedStartCalls);
+        $stopInvocationMocker = $stopwatch->expects($this->exactly($expectedCalls))
+            ->method('stop');
+        \call_user_func_array([$stopInvocationMocker, 'withConsecutive'], $expectedStopCalls);
 
         return $stopwatch;
     }

@@ -25,11 +25,9 @@ use Symfony\Component\DependencyInjection\Compiler\ServiceLocatorTagPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
-use Symfony\Component\DependencyInjection\Parameter;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
-use Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder;
 use Symfony\Component\Security\Core\Encoder\NativePasswordEncoder;
 use Symfony\Component\Security\Core\Encoder\SodiumPasswordEncoder;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
@@ -48,7 +46,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
     private $requestMatchers = [];
     private $expressions = [];
     private $contextListeners = [];
-    private $listenerPositions = ['pre_auth', 'form', 'http', 'remember_me'];
+    private $listenerPositions = ['pre_auth', 'form', 'http', 'remember_me', 'anonymous'];
     private $factories = [];
     private $userProviderFactories = [];
     private $statelessFirewallKeys = [];
@@ -117,7 +115,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
             $loader->load('security_debug.xml');
         }
 
-        if (!class_exists('Symfony\Component\ExpressionLanguage\ExpressionLanguage')) {
+        if (!class_exists(\Symfony\Component\ExpressionLanguage\ExpressionLanguage::class)) {
             $container->removeDefinition('security.expression_language');
             $container->removeDefinition('security.access.expression_voter');
         }
@@ -193,6 +191,12 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
                 $attributes[] = $this->createExpression($container, $access['allow_if']);
             }
 
+            $emptyAccess = 0 === \count(array_filter($access));
+
+            if ($emptyAccess) {
+                throw new InvalidConfigurationException('One or more access control items are empty. Did you accidentally add lines only containing a "-" under "security.access_control"?');
+            }
+
             $container->getDefinition('security.access_map')
                       ->addMethodCall('add', [$matcher, $attributes, $access['requires_channel']]);
         }
@@ -241,10 +245,11 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
 
             $configId = 'security.firewall.map.config.'.$name;
 
-            list($matcher, $listeners, $exceptionListener, $logoutListener) = $this->createFirewall($container, $name, $firewall, $authenticationProviders, $providerIds, $configId);
+            [$matcher, $listeners, $exceptionListener, $logoutListener] = $this->createFirewall($container, $name, $firewall, $authenticationProviders, $providerIds, $configId);
 
             $contextId = 'security.firewall.map.context.'.$name;
-            $context = $container->setDefinition($contextId, new ChildDefinition('security.firewall.context'));
+            $context = new ChildDefinition($firewall['stateless'] || empty($firewall['anonymous']['lazy']) ? 'security.firewall.context' : 'security.firewall.lazy_context');
+            $context = $container->setDefinition($contextId, $context);
             $context
                 ->replaceArgument(0, new IteratorArgument($listeners))
                 ->replaceArgument(1, $exceptionListener)
@@ -284,9 +289,9 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         if (isset($firewall['request_matcher'])) {
             $matcher = new Reference($firewall['request_matcher']);
         } elseif (isset($firewall['pattern']) || isset($firewall['host'])) {
-            $pattern = isset($firewall['pattern']) ? $firewall['pattern'] : null;
-            $host = isset($firewall['host']) ? $firewall['host'] : null;
-            $methods = isset($firewall['methods']) ? $firewall['methods'] : [];
+            $pattern = $firewall['pattern'] ?? null;
+            $host = $firewall['host'] ?? null;
+            $methods = $firewall['methods'] ?? [];
             $matcher = $this->createRequestMatcher($container, $pattern, $host, null, $methods);
         }
 
@@ -321,10 +326,11 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         $listeners[] = new Reference('security.channel_listener');
 
         $contextKey = null;
+        $contextListenerId = null;
         // Context serializer listener
         if (false === $firewall['stateless']) {
             $contextKey = $firewall['context'] ?? $id;
-            $listeners[] = new Reference($this->createContextListener($container, $contextKey));
+            $listeners[] = new Reference($contextListenerId = $this->createContextListener($container, $contextKey));
             $sessionStrategyId = 'security.authentication.session_strategy';
         } else {
             $this->statelessFirewallKeys[] = $id;
@@ -394,10 +400,10 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         }
 
         // Determine default entry point
-        $configuredEntryPoint = isset($firewall['entry_point']) ? $firewall['entry_point'] : null;
+        $configuredEntryPoint = $firewall['entry_point'] ?? null;
 
         // Authentication listeners
-        list($authListeners, $defaultEntryPoint) = $this->createAuthenticationListeners($container, $id, $firewall, $authenticationProviders, $defaultProvider, $providerIds, $configuredEntryPoint);
+        [$authListeners, $defaultEntryPoint] = $this->createAuthenticationListeners($container, $id, $firewall, $authenticationProviders, $defaultProvider, $providerIds, $configuredEntryPoint, $contextListenerId);
 
         $config->replaceArgument(7, $configuredEntryPoint ?: $defaultEntryPoint);
 
@@ -415,8 +421,8 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         // Exception listener
         $exceptionListener = new Reference($this->createExceptionListener($container, $firewall, $id, $configuredEntryPoint ?: $defaultEntryPoint, $firewall['stateless']));
 
-        $config->replaceArgument(8, isset($firewall['access_denied_handler']) ? $firewall['access_denied_handler'] : null);
-        $config->replaceArgument(9, isset($firewall['access_denied_url']) ? $firewall['access_denied_url'] : null);
+        $config->replaceArgument(8, $firewall['access_denied_handler'] ?? null);
+        $config->replaceArgument(9, $firewall['access_denied_url'] ?? null);
 
         $container->setAlias('security.user_checker.'.$id, new Alias($firewall['user_checker'], false));
 
@@ -429,12 +435,8 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
             }
         }
 
-        if (isset($firewall['anonymous'])) {
-            $listenerKeys[] = 'anonymous';
-        }
-
         $config->replaceArgument(10, $listenerKeys);
-        $config->replaceArgument(11, isset($firewall['switch_user']) ? $firewall['switch_user'] : null);
+        $config->replaceArgument(11, $firewall['switch_user'] ?? null);
 
         return [$matcher, $listeners, $exceptionListener, null !== $logoutListenerId ? new Reference($logoutListenerId) : null];
     }
@@ -452,7 +454,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         return $this->contextListeners[$contextKey] = $listenerId;
     }
 
-    private function createAuthenticationListeners(ContainerBuilder $container, string $id, array $firewall, array &$authenticationProviders, ?string $defaultProvider, array $providerIds, ?string $defaultEntryPoint)
+    private function createAuthenticationListeners(ContainerBuilder $container, string $id, array $firewall, array &$authenticationProviders, ?string $defaultProvider, array $providerIds, ?string $defaultEntryPoint, string $contextListenerId = null)
     {
         $listeners = [];
         $hasListeners = false;
@@ -467,9 +469,13 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
                             throw new InvalidConfigurationException(sprintf('Invalid firewall "%s": user provider "%s" not found.', $id, $firewall[$key]['provider']));
                         }
                         $userProvider = $providerIds[$normalizedName];
-                    } elseif ('remember_me' === $key) {
-                        // RememberMeFactory will use the firewall secret when created
+                    } elseif ('remember_me' === $key || 'anonymous' === $key) {
+                        // RememberMeFactory will use the firewall secret when created, AnonymousAuthenticationListener does not load users.
                         $userProvider = null;
+
+                        if ('remember_me' === $key && $contextListenerId) {
+                            $container->getDefinition($contextListenerId)->addTag('security.remember_me_aware', ['id' => $id, 'provider' => 'none']);
+                        }
                     } elseif ($defaultProvider) {
                         $userProvider = $defaultProvider;
                     } elseif (empty($providerIds)) {
@@ -479,37 +485,13 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
                         throw new InvalidConfigurationException(sprintf('Not configuring explicitly the provider for the "%s" listener on "%s" firewall is ambiguous as there is more than one registered provider.', $key, $id));
                     }
 
-                    list($provider, $listenerId, $defaultEntryPoint) = $factory->create($container, $id, $firewall[$key], $userProvider, $defaultEntryPoint);
+                    [$provider, $listenerId, $defaultEntryPoint] = $factory->create($container, $id, $firewall[$key], $userProvider, $defaultEntryPoint);
 
                     $listeners[] = new Reference($listenerId);
                     $authenticationProviders[] = $provider;
                     $hasListeners = true;
                 }
             }
-        }
-
-        // Anonymous
-        if (isset($firewall['anonymous'])) {
-            if (null === $firewall['anonymous']['secret']) {
-                $firewall['anonymous']['secret'] = new Parameter('container.build_hash');
-            }
-
-            $listenerId = 'security.authentication.listener.anonymous.'.$id;
-            $container
-                ->setDefinition($listenerId, new ChildDefinition('security.authentication.listener.anonymous'))
-                ->replaceArgument(1, $firewall['anonymous']['secret'])
-            ;
-
-            $listeners[] = new Reference($listenerId);
-
-            $providerId = 'security.authentication.provider.anonymous.'.$id;
-            $container
-                ->setDefinition($providerId, new ChildDefinition('security.authentication.provider.anonymous'))
-                ->replaceArgument(0, $firewall['anonymous']['secret'])
-            ;
-
-            $authenticationProviders[] = $providerId;
-            $hasListeners = true;
         }
 
         if (false === $hasListeners) {
@@ -539,6 +521,10 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
             return new Reference($config['id']);
         }
 
+        if ($config['migrate_from'] ?? false) {
+            return $config;
+        }
+
         // plaintext encoder
         if ('plaintext' === $config['algorithm']) {
             $arguments = [$config['ignore_case']];
@@ -564,34 +550,37 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
 
         // bcrypt encoder
         if ('bcrypt' === $config['algorithm']) {
-            @trigger_error('Configuring an encoder with "bcrypt" as algorithm is deprecated since Symfony 4.3, use "auto" instead.', E_USER_DEPRECATED);
+            $config['algorithm'] = 'native';
+            $config['native_algorithm'] = \PASSWORD_BCRYPT;
 
-            return [
-                'class' => 'Symfony\Component\Security\Core\Encoder\BCryptPasswordEncoder',
-                'arguments' => [$config['cost'] ?? 13],
-            ];
+            return $this->createEncoder($config);
         }
 
         // Argon2i encoder
         if ('argon2i' === $config['algorithm']) {
-            @trigger_error('Configuring an encoder with "argon2i" as algorithm is deprecated since Symfony 4.3, use "auto" instead.', E_USER_DEPRECATED);
-
-            if (!Argon2iPasswordEncoder::isSupported()) {
-                if (\extension_loaded('sodium') && !\defined('SODIUM_CRYPTO_PWHASH_SALTBYTES')) {
-                    throw new InvalidConfigurationException('The installed libsodium version does not have support for Argon2i. Use "auto" instead.');
-                }
-
-                throw new InvalidConfigurationException('Argon2i algorithm is not supported. Install the libsodium extension or use "auto" instead.');
+            if (SodiumPasswordEncoder::isSupported() && !\defined('SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13')) {
+                $config['algorithm'] = 'sodium';
+            } elseif (\defined('PASSWORD_ARGON2I')) {
+                $config['algorithm'] = 'native';
+                $config['native_algorithm'] = \PASSWORD_ARGON2I;
+            } else {
+                throw new InvalidConfigurationException(sprintf('Algorithm "argon2i" is not available. Either use "%s" or upgrade to PHP 7.2+ instead.', \defined('SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13') ? 'argon2id", "auto' : 'auto'));
             }
 
-            return [
-                'class' => 'Symfony\Component\Security\Core\Encoder\Argon2iPasswordEncoder',
-                'arguments' => [
-                    $config['memory_cost'],
-                    $config['time_cost'],
-                    $config['threads'],
-                ],
-            ];
+            return $this->createEncoder($config);
+        }
+
+        if ('argon2id' === $config['algorithm']) {
+            if (($hasSodium = SodiumPasswordEncoder::isSupported()) && \defined('SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13')) {
+                $config['algorithm'] = 'sodium';
+            } elseif (\defined('PASSWORD_ARGON2ID')) {
+                $config['algorithm'] = 'native';
+                $config['native_algorithm'] = \PASSWORD_ARGON2ID;
+            } else {
+                throw new InvalidConfigurationException(sprintf('Algorithm "argon2id" is not available. Either use "%s", upgrade to PHP 7.3+ or use libsodium 1.0.15+ instead.', \defined('PASSWORD_ARGON2I') || $hasSodium ? 'argon2i", "auto' : 'auto'));
+            }
+
+            return $this->createEncoder($config);
         }
 
         if ('native' === $config['algorithm']) {
@@ -601,7 +590,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
                     $config['time_cost'],
                     (($config['memory_cost'] ?? 0) << 10) ?: null,
                     $config['cost'],
-                ],
+                ] + (isset($config['native_algorithm']) ? [3 => $config['native_algorithm']] : []),
             ];
         }
 
@@ -624,7 +613,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
     }
 
     // Parses user providers and returns an array of their ids
-    private function createUserProviders(array $config, ContainerBuilder $container)
+    private function createUserProviders(array $config, ContainerBuilder $container): array
     {
         $providerIds = [];
         foreach ($config['providers'] as $name => $provider) {
@@ -636,7 +625,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
     }
 
     // Parses a <provider> tag and returns the id for the related user provider service
-    private function createUserDaoProvider(string $name, array $provider, ContainerBuilder $container)
+    private function createUserDaoProvider(string $name, array $provider, ContainerBuilder $container): string
     {
         $name = $this->getUserProviderId($name);
 
@@ -672,15 +661,15 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
             return $name;
         }
 
-        throw new InvalidConfigurationException(sprintf('Unable to create definition for "%s" user provider', $name));
+        throw new InvalidConfigurationException(sprintf('Unable to create definition for "%s" user provider.', $name));
     }
 
-    private function getUserProviderId(string $name)
+    private function getUserProviderId(string $name): string
     {
         return 'security.user.provider.concrete.'.strtolower($name);
     }
 
-    private function createExceptionListener(ContainerBuilder $container, array $config, string $id, ?string $defaultEntryPoint, bool $stateless)
+    private function createExceptionListener(ContainerBuilder $container, array $config, string $id, ?string $defaultEntryPoint, bool $stateless): string
     {
         $exceptionListenerId = 'security.exception_listener.'.$id;
         $listener = $container->setDefinition($exceptionListenerId, new ChildDefinition('security.exception_listener'));
@@ -698,7 +687,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         return $exceptionListenerId;
     }
 
-    private function createSwitchUserListener(ContainerBuilder $container, string $id, array $config, string $defaultProvider, bool $stateless)
+    private function createSwitchUserListener(ContainerBuilder $container, string $id, array $config, ?string $defaultProvider, bool $stateless): string
     {
         $userProvider = isset($config['provider']) ? $this->getUserProviderId($config['provider']) : $defaultProvider;
 
@@ -718,13 +707,13 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         return $switchUserListenerId;
     }
 
-    private function createExpression(ContainerBuilder $container, string $expression)
+    private function createExpression(ContainerBuilder $container, string $expression): Reference
     {
         if (isset($this->expressions[$id = '.security.expression.'.ContainerBuilder::hash($expression)])) {
             return $this->expressions[$id];
         }
 
-        if (!class_exists('Symfony\Component\ExpressionLanguage\ExpressionLanguage')) {
+        if (!class_exists(\Symfony\Component\ExpressionLanguage\ExpressionLanguage::class)) {
             throw new \RuntimeException('Unable to use expressions as the Symfony ExpressionLanguage component is not installed.');
         }
 
@@ -737,7 +726,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         return $this->expressions[$id] = new Reference($id);
     }
 
-    private function createRequestMatcher(ContainerBuilder $container, string $path = null, string $host = null, int $port = null, array $methods = [], array $ips = null, array $attributes = [])
+    private function createRequestMatcher(ContainerBuilder $container, string $path = null, string $host = null, int $port = null, array $methods = [], array $ips = null, array $attributes = []): Reference
     {
         if ($methods) {
             $methods = array_map('strtoupper', (array) $methods);
@@ -810,7 +799,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         $cidrParts = explode('/', $cidr);
 
         if (1 === \count($cidrParts)) {
-            return false !== filter_var($cidrParts[0], FILTER_VALIDATE_IP);
+            return false !== filter_var($cidrParts[0], \FILTER_VALIDATE_IP);
         }
 
         $ip = $cidrParts[0];
@@ -820,11 +809,11 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
             return false;
         }
 
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        if (filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4)) {
             return $netmask <= 32;
         }
 
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        if (filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6)) {
             return $netmask <= 128;
         }
 

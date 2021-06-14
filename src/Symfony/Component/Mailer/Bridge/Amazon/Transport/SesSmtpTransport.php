@@ -21,11 +21,11 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 class SesSmtpTransport extends EsmtpTransport
 {
     /**
-     * @param string $region Amazon SES region (currently one of us-east-1, us-west-2, or eu-west-1)
+     * @param string|null $region Amazon SES region
      */
     public function __construct(string $username, string $password, string $region = null, EventDispatcherInterface $dispatcher = null, LoggerInterface $logger = null)
     {
-        parent::__construct(sprintf('email-smtp.%s.amazonaws.com', $region ?: 'eu-west-1'), 587, true, $dispatcher, $logger);
+        parent::__construct(sprintf('email-smtp.%s.amazonaws.com', $region ?: 'eu-west-1'), 465, true, $dispatcher, $logger);
 
         $this->setUsername($username);
         $this->setPassword($password);

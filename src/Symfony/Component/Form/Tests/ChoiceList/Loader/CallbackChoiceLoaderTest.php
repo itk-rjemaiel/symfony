@@ -12,6 +12,7 @@
 namespace Symfony\Component\Form\Tests\ChoiceList\Loader;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Form\ChoiceList\ChoiceListInterface;
 use Symfony\Component\Form\ChoiceList\LazyChoiceList;
 use Symfony\Component\Form\ChoiceList\Loader\CallbackChoiceLoader;
 
@@ -51,7 +52,7 @@ class CallbackChoiceLoaderTest extends TestCase
             return self::$choices;
         });
         self::$value = function ($choice) {
-            return isset($choice->value) ? $choice->value : null;
+            return $choice->value ?? null;
         };
         self::$choices = [
             (object) ['value' => 'choice_one'],
@@ -63,7 +64,7 @@ class CallbackChoiceLoaderTest extends TestCase
 
     public function testLoadChoiceList()
     {
-        $this->assertInstanceOf('\Symfony\Component\Form\ChoiceList\ChoiceListInterface', self::$loader->loadChoiceList(self::$value));
+        $this->assertInstanceOf(ChoiceListInterface::class, self::$loader->loadChoiceList(self::$value));
     }
 
     public function testLoadChoiceListOnlyOnce()

@@ -24,13 +24,15 @@ use Symfony\Component\Validator\Exception\UnexpectedTypeException;
  */
 class FormValidator extends ConstraintValidator
 {
+    private $resolvedGroups;
+
     /**
      * {@inheritdoc}
      */
     public function validate($form, Constraint $formConstraint)
     {
         if (!$formConstraint instanceof Form) {
-            throw new UnexpectedTypeException($formConstraint, __NAMESPACE__.'\Form');
+            throw new UnexpectedTypeException($formConstraint, Form::class);
         }
 
         if (!$form instanceof FormInterface) {
@@ -44,42 +46,73 @@ class FormValidator extends ConstraintValidator
 
         if ($form->isSubmitted() && $form->isSynchronized()) {
             // Validate the form data only if transformation succeeded
-            $groups = self::getValidationGroups($form);
+            $groups = $this->getValidationGroups($form);
 
             if (!$groups) {
                 return;
             }
 
             $data = $form->getData();
-
             // Validate the data against its own constraints
-            if ($form->isRoot() && (\is_object($data) || \is_array($data))) {
-                if (($groups && \is_array($groups)) || ($groups instanceof GroupSequence && $groups->groups)) {
-                    $validator->atPath('data')->validate($form->getData(), null, $groups);
-                }
-            }
+            $validateDataGraph = $form->isRoot()
+                && (\is_object($data) || \is_array($data))
+                && (($groups && \is_array($groups)) || ($groups instanceof GroupSequence && $groups->groups))
+            ;
 
-            // Validate the data against the constraints defined
-            // in the form
+            // Validate the data against the constraints defined in the form
+            /** @var Constraint[] $constraints */
             $constraints = $config->getOption('constraints', []);
 
+            $hasChildren = $form->count() > 0;
+
+            if ($hasChildren && $form->isRoot()) {
+                $this->resolvedGroups = new \SplObjectStorage();
+            }
+
             if ($groups instanceof GroupSequence) {
-                $validator->atPath('data')->validate($form->getData(), $constraints, $groups);
-                // Otherwise validate a constraint only once for the first
-                // matching group
-                foreach ($groups as $group) {
-                    if (\in_array($group, $formConstraint->groups)) {
-                        $validator->atPath('data')->validate($form->getData(), $formConstraint, $group);
-                        if (\count($this->context->getViolations()) > 0) {
-                            break;
+                // Validate the data, the form AND nested fields in sequence
+                $violationsCount = $this->context->getViolations()->count();
+
+                foreach ($groups->groups as $group) {
+                    if ($validateDataGraph) {
+                        $validator->atPath('data')->validate($data, null, $group);
+                    }
+
+                    if ($groupedConstraints = self::getConstraintsInGroups($constraints, $group)) {
+                        $validator->atPath('data')->validate($data, $groupedConstraints, $group);
+                    }
+
+                    foreach ($form->all() as $field) {
+                        if ($field->isSubmitted()) {
+                            // remember to validate this field in one group only
+                            // otherwise resolving the groups would reuse the same
+                            // sequence recursively, thus some fields could fail
+                            // in different steps without breaking early enough
+                            $this->resolvedGroups[$field] = (array) $group;
+                            $fieldFormConstraint = new Form();
+                            $fieldFormConstraint->groups = $group;
+                            $this->context->setNode($this->context->getValue(), $field, $this->context->getMetadata(), $this->context->getPropertyPath());
+                            $validator->atPath(sprintf('children[%s]', $field->getName()))->validate($field, $fieldFormConstraint, $group);
                         }
+                    }
+
+                    if ($violationsCount < $this->context->getViolations()->count()) {
+                        break;
                     }
                 }
             } else {
+                if ($validateDataGraph) {
+                    $validator->atPath('data')->validate($data, null, $groups);
+                }
+
+                $groupedConstraints = [];
+
                 foreach ($constraints as $constraint) {
                     // For the "Valid" constraint, validate the data in all groups
                     if ($constraint instanceof Valid) {
-                        $validator->atPath('data')->validate($form->getData(), $constraint, $groups);
+                        if (\is_object($data)) {
+                            $validator->atPath('data')->validate($data, $constraint, $groups);
+                        }
 
                         continue;
                     }
@@ -88,7 +121,7 @@ class FormValidator extends ConstraintValidator
                     // matching group
                     foreach ($groups as $group) {
                         if (\in_array($group, $constraint->groups)) {
-                            $validator->atPath('data')->validate($form->getData(), $constraint, $group);
+                            $groupedConstraints[$group][] = $constraint;
 
                             // Prevent duplicate validation
                             if (!$constraint instanceof Composite) {
@@ -97,6 +130,23 @@ class FormValidator extends ConstraintValidator
                         }
                     }
                 }
+
+                foreach ($groupedConstraints as $group => $constraint) {
+                    $validator->atPath('data')->validate($data, $constraint, $group);
+                }
+
+                foreach ($form->all() as $field) {
+                    if ($field->isSubmitted()) {
+                        $this->resolvedGroups[$field] = $groups;
+                        $this->context->setNode($this->context->getValue(), $field, $this->context->getMetadata(), $this->context->getPropertyPath());
+                        $validator->atPath(sprintf('children[%s]', $field->getName()))->validate($field, $formConstraint);
+                    }
+                }
+            }
+
+            if ($hasChildren && $form->isRoot()) {
+                // destroy storage to avoid memory leaks
+                $this->resolvedGroups = new \SplObjectStorage();
             }
         } elseif (!$form->isSynchronized()) {
             $childrenSynchronized = true;
@@ -105,7 +155,8 @@ class FormValidator extends ConstraintValidator
             foreach ($form as $child) {
                 if (!$child->isSynchronized()) {
                     $childrenSynchronized = false;
-                    break;
+                    $this->context->setNode($this->context->getValue(), $child, $this->context->getMetadata(), $this->context->getPropertyPath());
+                    $validator->atPath(sprintf('children[%s]', $child->getName()))->validate($child, $formConstraint);
                 }
             }
 
@@ -151,9 +202,9 @@ class FormValidator extends ConstraintValidator
     /**
      * Returns the validation groups of the given form.
      *
-     * @return string|GroupSequence|(string|GroupSequence)[] The validation groups
+     * @return string|GroupSequence|array<string|GroupSequence> The validation groups
      */
-    private static function getValidationGroups(FormInterface $form)
+    private function getValidationGroups(FormInterface $form)
     {
         // Determine the clicked button of the complete form tree
         $clickedButton = null;
@@ -177,6 +228,10 @@ class FormValidator extends ConstraintValidator
                 return self::resolveValidationGroups($groups, $form);
             }
 
+            if (isset($this->resolvedGroups[$form])) {
+                return $this->resolvedGroups[$form];
+            }
+
             $form = $form->getParent();
         } while (null !== $form);
 
@@ -186,9 +241,9 @@ class FormValidator extends ConstraintValidator
     /**
      * Post-processes the validation groups option for a given form.
      *
-     * @param string|GroupSequence|(string|GroupSequence)[]|callable $groups The validation groups
+     * @param string|GroupSequence|array<string|GroupSequence>|callable $groups The validation groups
      *
-     * @return (string|GroupSequence)[] The validation groups
+     * @return GroupSequence|array<string|GroupSequence> The validation groups
      */
     private static function resolveValidationGroups($groups, FormInterface $form)
     {
@@ -201,5 +256,12 @@ class FormValidator extends ConstraintValidator
         }
 
         return (array) $groups;
+    }
+
+    private static function getConstraintsInGroups($constraints, $group)
+    {
+        return array_filter($constraints, static function (Constraint $constraint) use ($group) {
+            return \in_array($group, $constraint->groups, true);
+        });
     }
 }

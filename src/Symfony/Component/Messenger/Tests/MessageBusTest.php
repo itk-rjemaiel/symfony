@@ -34,8 +34,8 @@ class MessageBusTest extends TestCase
 
     public function testItDispatchInvalidMessageType()
     {
-        $this->expectException('TypeError');
-        $this->expectExceptionMessage('Invalid argument provided to "Symfony\Component\Messenger\MessageBus::dispatch()": expected object, but got string.');
+        $this->expectException(\TypeError::class);
+        $this->expectExceptionMessage('Invalid argument provided to "Symfony\Component\Messenger\MessageBus::dispatch()": expected object, but got "string".');
         (new MessageBus())->dispatch('wrong');
     }
 
@@ -44,7 +44,7 @@ class MessageBusTest extends TestCase
         $message = new DummyMessage('Hello');
         $envelope = new Envelope($message);
 
-        $firstMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $firstMiddleware = $this->createMock(MiddlewareInterface::class);
         $firstMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelope, $this->anything())
@@ -52,7 +52,7 @@ class MessageBusTest extends TestCase
                 return $stack->next()->handle($envelope, $stack);
             });
 
-        $secondMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $secondMiddleware = $this->createMock(MiddlewareInterface::class);
         $secondMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelope, $this->anything())
@@ -73,7 +73,7 @@ class MessageBusTest extends TestCase
         $envelope = new Envelope($message, [new ReceivedStamp('transport')]);
         $envelopeWithAnotherStamp = $envelope->with(new AnEnvelopeStamp());
 
-        $firstMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $firstMiddleware = $this->createMock(MiddlewareInterface::class);
         $firstMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelope, $this->anything())
@@ -81,7 +81,7 @@ class MessageBusTest extends TestCase
                 return $stack->next()->handle($envelope->with(new AnEnvelopeStamp()), $stack);
             });
 
-        $secondMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $secondMiddleware = $this->createMock(MiddlewareInterface::class);
         $secondMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelopeWithAnotherStamp, $this->anything())
@@ -89,7 +89,7 @@ class MessageBusTest extends TestCase
                 return $stack->next()->handle($envelope, $stack);
             });
 
-        $thirdMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $thirdMiddleware = $this->createMock(MiddlewareInterface::class);
         $thirdMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelopeWithAnotherStamp, $this->anything())
@@ -113,7 +113,7 @@ class MessageBusTest extends TestCase
         $changedMessage = new DummyMessage('Changed');
         $expectedEnvelope = new Envelope($changedMessage, $stamps);
 
-        $firstMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $firstMiddleware = $this->createMock(MiddlewareInterface::class);
         $firstMiddleware->expects($this->once())
             ->method('handle')
             ->with($envelope, $this->anything())
@@ -121,7 +121,7 @@ class MessageBusTest extends TestCase
                 return $stack->next()->handle($expectedEnvelope, $stack);
             });
 
-        $secondMiddleware = $this->getMockBuilder(MiddlewareInterface::class)->getMock();
+        $secondMiddleware = $this->createMock(MiddlewareInterface::class);
         $secondMiddleware->expects($this->once())
             ->method('handle')
             ->with($expectedEnvelope, $this->anything())
@@ -148,7 +148,7 @@ class MessageBusTest extends TestCase
         $this->assertCount(2, $finalEnvelope->all());
     }
 
-    public function provideConstructorDataStucture()
+    public function provideConstructorDataStucture(): iterable
     {
         yield 'iterator' => [new \ArrayObject([
             new SimpleMiddleware(),
@@ -167,7 +167,7 @@ class MessageBusTest extends TestCase
     }
 
     /** @dataProvider provideConstructorDataStucture */
-    public function testConstructDataStructure($dataStructure)
+    public function testConstructDataStructure(iterable $dataStructure)
     {
         $bus = new MessageBus($dataStructure);
         $envelope = new Envelope(new DummyMessage('Hello'));

@@ -20,10 +20,9 @@ use Symfony\Contracts\EventDispatcher\Event as ContractsEvent;
 class EventDispatcherTest extends TestCase
 {
     /* Some pseudo events */
-    const preFoo = 'pre.foo';
-    const postFoo = 'post.foo';
-    const preBar = 'pre.bar';
-    const postBar = 'post.bar';
+    private const preFoo = 'pre.foo';
+    private const postFoo = 'post.foo';
+    private const preBar = 'pre.bar';
 
     /**
      * @var EventDispatcher
@@ -135,8 +134,8 @@ class EventDispatcherTest extends TestCase
         $this->dispatcher->dispatch(new Event(), self::preFoo);
         $this->assertTrue($this->listener->preFooInvoked);
         $this->assertFalse($this->listener->postFooInvoked);
-        $this->assertInstanceOf('Symfony\Component\EventDispatcher\Event', $this->dispatcher->dispatch(new Event(), 'noevent'));
-        $this->assertInstanceOf('Symfony\Component\EventDispatcher\Event', $this->dispatcher->dispatch(new Event(), self::preFoo));
+        $this->assertInstanceOf(Event::class, $this->dispatcher->dispatch(new Event(), 'noevent'));
+        $this->assertInstanceOf(Event::class, $this->dispatcher->dispatch(new Event(), self::preFoo));
         $event = new Event();
         $return = $this->dispatcher->dispatch($event, self::preFoo);
         $this->assertSame($event, $return);
@@ -149,8 +148,8 @@ class EventDispatcherTest extends TestCase
         $this->dispatcher->dispatch(new ContractsEvent(), self::preFoo);
         $this->assertTrue($this->listener->preFooInvoked);
         $this->assertFalse($this->listener->postFooInvoked);
-        $this->assertInstanceOf('Symfony\Component\EventDispatcher\Event', $this->dispatcher->dispatch(new Event(), 'noevent'));
-        $this->assertInstanceOf('Symfony\Component\EventDispatcher\Event', $this->dispatcher->dispatch(new Event(), self::preFoo));
+        $this->assertInstanceOf(Event::class, $this->dispatcher->dispatch(new Event(), 'noevent'));
+        $this->assertInstanceOf(Event::class, $this->dispatcher->dispatch(new Event(), self::preFoo));
         $event = new Event();
         $return = $this->dispatcher->dispatch($event, self::preFoo);
         $this->assertSame($event, $return);
@@ -229,7 +228,7 @@ class EventDispatcherTest extends TestCase
         $listeners = $this->dispatcher->getListeners('pre.foo');
         $this->assertTrue($this->dispatcher->hasListeners(self::preFoo));
         $this->assertCount(2, $listeners);
-        $this->assertInstanceOf('Symfony\Component\EventDispatcher\Tests\TestEventSubscriberWithPriorities', $listeners[0][0]);
+        $this->assertInstanceOf(TestEventSubscriberWithPriorities::class, $listeners[0][0]);
     }
 
     public function testAddSubscriberWithMultipleListeners()
@@ -334,17 +333,26 @@ class EventDispatcherTest extends TestCase
 
     public function testDispatchLazyListener()
     {
+        $dispatcher = new TestWithDispatcher();
         $called = 0;
-        $factory = function () use (&$called) {
+        $factory = function () use (&$called, $dispatcher) {
             ++$called;
 
-            return new TestWithDispatcher();
+            return $dispatcher;
         };
         $this->dispatcher->addListener('foo', [$factory, 'foo']);
         $this->assertSame(0, $called);
         $this->dispatcher->dispatch(new Event(), 'foo');
+        $this->assertFalse($dispatcher->invoked);
         $this->dispatcher->dispatch(new Event(), 'foo');
         $this->assertSame(1, $called);
+
+        $this->dispatcher->addListener('bar', [$factory]);
+        $this->assertSame(1, $called);
+        $this->dispatcher->dispatch(new Event(), 'bar');
+        $this->assertTrue($dispatcher->invoked);
+        $this->dispatcher->dispatch(new Event(), 'bar');
+        $this->assertSame(2, $called);
     }
 
     public function testRemoveFindsLazyListeners()
@@ -431,10 +439,12 @@ class EventDispatcherTest extends TestCase
         $this->dispatcher->dispatch('foo', new Event());
     }
 
+    /**
+     * @group legacy
+     * @expectedDeprecation Calling the "Symfony\Component\EventDispatcher\EventDispatcherInterface::dispatch()" method with the event name as the first argument is deprecated since Symfony 4.3, pass it as the second argument and provide the event object as the first argument instead.
+     */
     public function testLegacySignatureWithNewEventObject()
     {
-        $this->expectException('TypeError');
-        $this->expectExceptionMessage('Argument 1 passed to "Symfony\Component\EventDispatcher\EventDispatcherInterface::dispatch()" must be an object, string given.');
         $this->dispatcher->dispatch('foo', new ContractsEvent());
     }
 }
@@ -472,11 +482,19 @@ class TestWithDispatcher
 {
     public $name;
     public $dispatcher;
+    public $invoked = false;
 
     public function foo($e, $name, $dispatcher)
     {
         $this->name = $name;
         $this->dispatcher = $dispatcher;
+    }
+
+    public function __invoke($e, $name, $dispatcher)
+    {
+        $this->name = $name;
+        $this->dispatcher = $dispatcher;
+        $this->invoked = true;
     }
 }
 

@@ -94,6 +94,21 @@ class Dummy extends ParentDummy
     public $j;
 
     /**
+     * @var int[]|null
+     */
+    public $nullableCollectionOfNonNullableElements;
+
+    /**
+     * @var array
+     */
+    private $xTotals;
+
+    /**
+     * @var string
+     */
+    private $YT;
+
+    /**
      * This should not be removed.
      *
      * @var
@@ -114,6 +129,11 @@ class Dummy extends ParentDummy
      * @var \Iterator<integer,\Iterator<integer,string>>
      */
     public $nestedIterators;
+
+    /**
+     * @var parent
+     */
+    public $parentAnnotation;
 
     public static function getStatic()
     {
@@ -179,6 +199,28 @@ class Dummy extends ParentDummy
      * @param parent $realParent
      */
     public function setRealParent(parent $realParent)
+    {
+    }
+
+    /**
+     * @return array
+     */
+    public function getXTotals()
+    {
+    }
+
+    /**
+     * @return string
+     */
+    public function getYT()
+    {
+    }
+
+    public function setDate(\DateTime $date)
+    {
+    }
+
+    public function addDate(\DateTime $date)
     {
     }
 }

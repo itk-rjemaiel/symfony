@@ -62,7 +62,7 @@ class CombinedStoreTest extends AbstractStoreTest
 
     protected function setUp(): void
     {
-        $this->strategy = $this->getMockBuilder(StrategyInterface::class)->getMock();
+        $this->strategy = $this->createMock(StrategyInterface::class);
         $this->store1 = $this->createMock(BlockingStoreInterface::class);
         $this->store2 = $this->createMock(BlockingStoreInterface::class);
 
@@ -71,7 +71,7 @@ class CombinedStoreTest extends AbstractStoreTest
 
     public function testSaveThrowsExceptionOnFailure()
     {
-        $this->expectException('Symfony\Component\Lock\Exception\LockConflictedException');
+        $this->expectException(LockConflictedException::class);
         $key = new Key(uniqid(__METHOD__, true));
 
         $this->store1
@@ -166,7 +166,7 @@ class CombinedStoreTest extends AbstractStoreTest
 
     public function testputOffExpirationThrowsExceptionOnFailure()
     {
-        $this->expectException('Symfony\Component\Lock\Exception\LockConflictedException');
+        $this->expectException(LockConflictedException::class);
         $key = new Key(uniqid(__METHOD__, true));
         $ttl = random_int(1, 10);
 
@@ -264,8 +264,8 @@ class CombinedStoreTest extends AbstractStoreTest
 
     public function testPutOffExpirationIgnoreNonExpiringStorage()
     {
-        $store1 = $this->getMockBuilder(PersistingStoreInterface::class)->getMock();
-        $store2 = $this->getMockBuilder(PersistingStoreInterface::class)->getMock();
+        $store1 = $this->createMock(PersistingStoreInterface::class);
+        $store2 = $this->createMock(PersistingStoreInterface::class);
 
         $store = new CombinedStore([$store1, $store2], $this->strategy);
 
@@ -350,5 +350,30 @@ class CombinedStoreTest extends AbstractStoreTest
             ->with($key);
 
         $this->store->delete($key);
+    }
+
+    public function testExistsDontStopOnFailure()
+    {
+        $key = new Key(uniqid(__METHOD__, true));
+
+        $this->strategy
+            ->expects($this->any())
+            ->method('canBeMet')
+            ->willReturn(true);
+        $this->strategy
+            ->expects($this->any())
+            ->method('isMet')
+            ->willReturn(false);
+        $this->store1
+            ->expects($this->once())
+            ->method('exists')
+            ->willThrowException(new \Exception());
+        $this->store2
+            ->expects($this->once())
+            ->method('exists')
+            ->with($key)
+            ->willReturn(false);
+
+        $this->assertFalse($this->store->exists($key));
     }
 }

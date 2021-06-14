@@ -23,8 +23,8 @@ use Symfony\Component\Form\Exception\UnexpectedTypeException;
  */
 class PercentToLocalizedStringTransformer implements DataTransformerInterface
 {
-    const FRACTIONAL = 'fractional';
-    const INTEGER = 'integer';
+    public const FRACTIONAL = 'fractional';
+    public const INTEGER = 'integer';
 
     protected static $types = [
         self::FRACTIONAL,
@@ -162,7 +162,7 @@ class PercentToLocalizedStringTransformer implements DataTransformerInterface
             $remainder = trim($remainder, " \t\n\r\0\x0b\xc2\xa0");
 
             if ('' !== $remainder) {
-                throw new TransformationFailedException(sprintf('The number contains unrecognized characters: "%s"', $remainder));
+                throw new TransformationFailedException(sprintf('The number contains unrecognized characters: "%s".', $remainder));
             }
         }
 

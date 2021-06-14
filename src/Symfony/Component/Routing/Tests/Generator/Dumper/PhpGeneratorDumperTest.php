@@ -12,6 +12,7 @@
 namespace Symfony\Component\Routing\Tests\Generator\Dumper;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Component\Routing\Generator\Dumper\PhpGeneratorDumper;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\RequestContext;
@@ -90,8 +91,8 @@ class PhpGeneratorDumperTest extends TestCase
     public function testDumpWithSimpleLocalizedRoutes()
     {
         $this->routeCollection->add('test', (new Route('/foo')));
-        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'test'));
-        $this->routeCollection->add('test.nl', (new Route('/testen/is/leuk'))->setDefault('_locale', 'nl')->setDefault('_canonical_route', 'test'));
+        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'en'));
+        $this->routeCollection->add('test.nl', (new Route('/testen/is/leuk'))->setDefault('_locale', 'nl')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'nl'));
 
         $code = $this->generatorDumper->dump([
             'class' => 'SimpleLocalizedProjectUrlGenerator',
@@ -124,9 +125,9 @@ class PhpGeneratorDumperTest extends TestCase
 
     public function testDumpWithRouteNotFoundLocalizedRoutes()
     {
-        $this->expectException('Symfony\Component\Routing\Exception\RouteNotFoundException');
+        $this->expectException(RouteNotFoundException::class);
         $this->expectExceptionMessage('Unable to generate a URL for the named route "test" as such route does not exist.');
-        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'test'));
+        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'en'));
 
         $code = $this->generatorDumper->dump([
             'class' => 'RouteNotFoundLocalizedProjectUrlGenerator',
@@ -140,9 +141,9 @@ class PhpGeneratorDumperTest extends TestCase
 
     public function testDumpWithFallbackLocaleLocalizedRoutes()
     {
-        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_canonical_route', 'test'));
-        $this->routeCollection->add('test.nl', (new Route('/testen/is/leuk'))->setDefault('_canonical_route', 'test'));
-        $this->routeCollection->add('test.fr', (new Route('/tester/est/amusant'))->setDefault('_canonical_route', 'test'));
+        $this->routeCollection->add('test.en', (new Route('/testing/is/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'en'));
+        $this->routeCollection->add('test.nl', (new Route('/testen/is/leuk'))->setDefault('_locale', 'nl')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'nl'));
+        $this->routeCollection->add('test.fr', (new Route('/tester/est/amusant'))->setDefault('_locale', 'fr')->setDefault('_canonical_route', 'test')->setRequirement('_locale', 'fr'));
 
         $code = $this->generatorDumper->dump([
             'class' => 'FallbackLocaleLocalizedProjectUrlGenerator',
@@ -193,7 +194,7 @@ class PhpGeneratorDumperTest extends TestCase
 
     public function testDumpWithoutRoutes()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         file_put_contents($this->testTmpFilepath, $this->generatorDumper->dump(['class' => 'WithoutRoutesUrlGenerator']));
         include $this->testTmpFilepath;
 
@@ -204,14 +205,14 @@ class PhpGeneratorDumperTest extends TestCase
 
     public function testGenerateNonExistingRoute()
     {
-        $this->expectException('Symfony\Component\Routing\Exception\RouteNotFoundException');
+        $this->expectException(RouteNotFoundException::class);
         $this->routeCollection->add('Test', new Route('/test'));
 
         file_put_contents($this->testTmpFilepath, $this->generatorDumper->dump(['class' => 'NonExistingRoutesUrlGenerator']));
         include $this->testTmpFilepath;
 
         $projectUrlGenerator = new \NonExistingRoutesUrlGenerator(new RequestContext());
-        $url = $projectUrlGenerator->generate('NonExisting', []);
+        $projectUrlGenerator->generate('NonExisting', []);
     }
 
     public function testDumpForRouteWithDefaults()
@@ -249,5 +250,33 @@ class PhpGeneratorDumperTest extends TestCase
 
         $this->assertEquals('https://localhost/app.php/testing', $absoluteUrl);
         $this->assertEquals('/app.php/testing', $relativeUrl);
+    }
+
+    public function testDumpWithLocalizedRoutesPreserveTheGoodLocaleInTheUrl()
+    {
+        $this->routeCollection->add('foo.en', (new Route('/{_locale}/fork'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'foo')->setRequirement('_locale', 'en'));
+        $this->routeCollection->add('foo.fr', (new Route('/{_locale}/fourchette'))->setDefault('_locale', 'fr')->setDefault('_canonical_route', 'foo')->setRequirement('_locale', 'fr'));
+        $this->routeCollection->add('fun.en', (new Route('/fun'))->setDefault('_locale', 'en')->setDefault('_canonical_route', 'fun')->setRequirement('_locale', 'en'));
+        $this->routeCollection->add('fun.fr', (new Route('/amusant'))->setDefault('_locale', 'fr')->setDefault('_canonical_route', 'fun')->setRequirement('_locale', 'fr'));
+
+        file_put_contents($this->testTmpFilepath, $this->generatorDumper->dump([
+            'class' => 'PreserveTheGoodLocaleInTheUrlGenerator',
+        ]));
+        include $this->testTmpFilepath;
+
+        $requestContext = new RequestContext();
+        $requestContext->setParameter('_locale', 'fr');
+
+        $phpGenerator = new \PreserveTheGoodLocaleInTheUrlGenerator($requestContext);
+
+        $this->assertSame('/fr/fourchette', $phpGenerator->generate('foo'));
+        $this->assertSame('/en/fork', $phpGenerator->generate('foo.en'));
+        $this->assertSame('/en/fork', $phpGenerator->generate('foo', ['_locale' => 'en']));
+        $this->assertSame('/fr/fourchette', $phpGenerator->generate('foo.fr', ['_locale' => 'en']));
+
+        $this->assertSame('/amusant', $phpGenerator->generate('fun'));
+        $this->assertSame('/fun', $phpGenerator->generate('fun.en'));
+        $this->assertSame('/fun', $phpGenerator->generate('fun', ['_locale' => 'en']));
+        $this->assertSame('/amusant', $phpGenerator->generate('fun.fr', ['_locale' => 'en']));
     }
 }

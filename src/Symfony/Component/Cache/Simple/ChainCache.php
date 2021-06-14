@@ -19,7 +19,7 @@ use Symfony\Component\Cache\ResettableInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
-@trigger_error(sprintf('The "%s" class is deprecated since Symfony 4.3, use "%s" and type-hint for "%s" instead.', ChainCache::class, ChainAdapter::class, CacheInterface::class), E_USER_DEPRECATED);
+@trigger_error(sprintf('The "%s" class is deprecated since Symfony 4.3, use "%s" and type-hint for "%s" instead.', ChainCache::class, ChainAdapter::class, CacheInterface::class), \E_USER_DEPRECATED);
 
 /**
  * Chains several caches together.
@@ -92,11 +92,11 @@ class ChainCache implements Psr16CacheInterface, PruneableInterface, ResettableI
         return $this->generateItems($this->caches[0]->getMultiple($keys, $miss), 0, $miss, $default);
     }
 
-    private function generateItems(iterable $values, int $cacheIndex, $miss, $default)
+    private function generateItems(iterable $values, int $cacheIndex, $miss, $default): iterable
     {
         $missing = [];
         $nextCacheIndex = $cacheIndex + 1;
-        $nextCache = isset($this->caches[$nextCacheIndex]) ? $this->caches[$nextCacheIndex] : null;
+        $nextCache = $this->caches[$nextCacheIndex] ?? null;
 
         foreach ($values as $k => $value) {
             if ($miss !== $value) {

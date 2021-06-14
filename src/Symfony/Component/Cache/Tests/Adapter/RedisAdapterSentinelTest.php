@@ -13,12 +13,16 @@ namespace Symfony\Component\Cache\Tests\Adapter;
 
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\RedisAdapter;
+use Symfony\Component\Cache\Exception\InvalidArgumentException;
 
+/**
+ * @group integration
+ */
 class RedisAdapterSentinelTest extends AbstractRedisAdapterTest
 {
     public static function setUpBeforeClass(): void
     {
-        if (!class_exists('Predis\Client')) {
+        if (!class_exists(\Predis\Client::class)) {
             self::markTestSkipped('The Predis\Client class is required.');
         }
         if (!$hosts = getenv('REDIS_SENTINEL_HOSTS')) {
@@ -33,8 +37,8 @@ class RedisAdapterSentinelTest extends AbstractRedisAdapterTest
 
     public function testInvalidDSNHasBothClusterAndSentinel()
     {
-        $this->expectException('Symfony\Component\Cache\Exception\InvalidArgumentException');
-        $this->expectExceptionMessage('Invalid Redis DSN: cannot use both redis_cluster and redis_sentinel at the same time');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot use both "redis_cluster" and "redis_sentinel" at the same time:');
         $dsn = 'redis:?host[redis1]&host[redis2]&host[redis3]&redis_cluster=1&redis_sentinel=mymaster';
         RedisAdapter::createConnection($dsn);
     }

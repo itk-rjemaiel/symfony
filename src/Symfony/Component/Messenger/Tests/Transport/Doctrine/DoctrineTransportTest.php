@@ -1,13 +1,13 @@
 <?php
 
 /*
-* This file is part of the symfony project.
-*
-* (c) Vincent Touzet <vincent.touzet@dotsafe.fr>
-*
-* For the full copyright and license information, please view the LICENSE
-* file that was distributed with this source code.
-*/
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace Symfony\Component\Messenger\Tests\Transport\Doctrine;
 
@@ -50,10 +50,10 @@ class DoctrineTransportTest extends TestCase
         $this->assertSame($decodedMessage, $envelopes[0]->getMessage());
     }
 
-    private function getTransport(SerializerInterface $serializer = null, Connection $connection = null)
+    private function getTransport(SerializerInterface $serializer = null, Connection $connection = null): DoctrineTransport
     {
-        $serializer = $serializer ?: $this->createMock(SerializerInterface::class);
-        $connection = $connection ?: $this->createMock(Connection::class);
+        $serializer = $serializer ?? $this->createMock(SerializerInterface::class);
+        $connection = $connection ?? $this->createMock(Connection::class);
 
         return new DoctrineTransport($connection, $serializer);
     }

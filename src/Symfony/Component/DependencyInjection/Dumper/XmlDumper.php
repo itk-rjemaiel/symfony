@@ -116,9 +116,15 @@ class XmlDumper extends Dumper
         if ($definition->isLazy()) {
             $service->setAttribute('lazy', 'true');
         }
-        if (null !== $decorated = $definition->getDecoratedService()) {
-            list($decorated, $renamedId, $priority) = $decorated;
+        if (null !== $decoratedService = $definition->getDecoratedService()) {
+            [$decorated, $renamedId, $priority] = $decoratedService;
             $service->setAttribute('decorates', $decorated);
+
+            $decorationOnInvalid = $decoratedService[3] ?? ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE;
+            if (\in_array($decorationOnInvalid, [ContainerInterface::IGNORE_ON_INVALID_REFERENCE, ContainerInterface::NULL_ON_INVALID_REFERENCE], true)) {
+                $invalidBehavior = ContainerInterface::NULL_ON_INVALID_REFERENCE === $decorationOnInvalid ? 'null' : 'ignore';
+                $service->setAttribute('decoration-on-invalid', $invalidBehavior);
+            }
             if (null !== $renamedId) {
                 $service->setAttribute('decoration-inner-name', $renamedId);
             }
@@ -258,9 +264,6 @@ class XmlDumper extends Dumper
                 $element->setAttribute($keyAttribute, $key);
             }
 
-            if ($value instanceof ServiceClosureArgument) {
-                $value = $value->getValues()[0];
-            }
             if (\is_array($tag = $value)) {
                 $element->setAttribute('type', 'collection');
                 $this->convertParameters($value, $type, $element, 'key');
@@ -274,6 +277,9 @@ class XmlDumper extends Dumper
                     if (null !== $tag->getDefaultIndexMethod()) {
                         $element->setAttribute('default-index-method', $tag->getDefaultIndexMethod());
                     }
+                    if (null !== $tag->getDefaultPriorityMethod()) {
+                        $element->setAttribute('default-priority-method', $tag->getDefaultPriorityMethod());
+                    }
                 }
             } elseif ($value instanceof IteratorArgument) {
                 $element->setAttribute('type', 'iterator');
@@ -281,8 +287,12 @@ class XmlDumper extends Dumper
             } elseif ($value instanceof ServiceLocatorArgument) {
                 $element->setAttribute('type', 'service_locator');
                 $this->convertParameters($value->getValues(), $type, $element, 'key');
-            } elseif ($value instanceof Reference) {
+            } elseif ($value instanceof Reference || $value instanceof ServiceClosureArgument) {
                 $element->setAttribute('type', 'service');
+                if ($value instanceof ServiceClosureArgument) {
+                    $element->setAttribute('type', 'service_closure');
+                    $value = $value->getValues()[0];
+                }
                 $element->setAttribute('id', (string) $value);
                 $behavior = $value->getInvalidBehavior();
                 if (ContainerInterface::NULL_ON_INVALID_REFERENCE == $behavior) {
@@ -307,6 +317,11 @@ class XmlDumper extends Dumper
                 if (\in_array($value, ['null', 'true', 'false'], true)) {
                     $element->setAttribute('type', 'string');
                 }
+
+                if (\is_string($value) && (is_numeric($value) || preg_match('/^0b[01]*$/', $value) || preg_match('/^0x[0-9a-f]++$/i', $value))) {
+                    $element->setAttribute('type', 'string');
+                }
+
                 $text = $this->document->createTextNode(self::phpToXml($value));
                 $element->appendChild($text);
             }
@@ -338,11 +353,9 @@ class XmlDumper extends Dumper
      *
      * @param mixed $value Value to convert
      *
-     * @return string
-     *
      * @throws RuntimeException When trying to dump object or resource
      */
-    public static function phpToXml($value)
+    public static function phpToXml($value): string
     {
         switch (true) {
             case null === $value:

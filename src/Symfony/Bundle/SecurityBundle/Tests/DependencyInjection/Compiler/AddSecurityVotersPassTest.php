@@ -24,7 +24,7 @@ class AddSecurityVotersPassTest extends TestCase
 {
     public function testNoVoters()
     {
-        $this->expectException('Symfony\Component\DependencyInjection\Exception\LogicException');
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('No security voters found. You need to tag at least one with "security.voter".');
         $container = new ContainerBuilder();
         $container
@@ -71,7 +71,7 @@ class AddSecurityVotersPassTest extends TestCase
         $this->assertCount(4, $refs);
     }
 
-    public function testThatVotersAreTraceableInDebugMode(): void
+    public function testThatVotersAreTraceableInDebugMode()
     {
         $container = new ContainerBuilder();
 
@@ -103,7 +103,7 @@ class AddSecurityVotersPassTest extends TestCase
         $this->assertCount(2, $voters, 'Incorrect count of voters');
     }
 
-    public function testThatVotersAreNotTraceableWithoutDebugMode(): void
+    public function testThatVotersAreNotTraceableWithoutDebugMode()
     {
         $container = new ContainerBuilder();
         $container->setParameter('kernel.debug', false);
@@ -130,7 +130,7 @@ class AddSecurityVotersPassTest extends TestCase
     public function testVoterMissingInterface()
     {
         $exception = LogicException::class;
-        $message = 'stdClass must implement the Symfony\Component\Security\Core\Authorization\Voter\VoterInterface when used as a voter.';
+        $message = '"stdClass" must implement the "Symfony\Component\Security\Core\Authorization\Voter\VoterInterface" when used as a voter.';
 
         $this->expectException($exception);
         $this->expectExceptionMessage($message);

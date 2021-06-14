@@ -14,11 +14,12 @@ namespace Symfony\Component\Security\Guard\Tests;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
-use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Guard\AuthenticatorInterface;
 use Symfony\Component\Security\Guard\GuardAuthenticatorHandler;
+use Symfony\Component\Security\Guard\Tests\Fixtures\TokenInterface;
 use Symfony\Component\Security\Http\Event\InteractiveLoginEvent;
 use Symfony\Component\Security\Http\SecurityEvents;
 use Symfony\Component\Security\Http\Session\SessionAuthenticationStrategyInterface;
@@ -87,7 +88,7 @@ class GuardAuthenticatorHandlerTest extends TestCase
     /**
      * @dataProvider getTokenClearingTests
      */
-    public function testHandleAuthenticationClearsToken($tokenClass, $tokenProviderKey, $actualProviderKey)
+    public function testHandleAuthenticationClearsToken($tokenProviderKey, $actualProviderKey)
     {
         $this->tokenStorage->expects($this->never())
             ->method('setToken')
@@ -108,10 +109,10 @@ class GuardAuthenticatorHandlerTest extends TestCase
     public function getTokenClearingTests()
     {
         $tests = [];
-        // correct token class and matching firewall => clear the token
-        $tests[] = ['Symfony\Component\Security\Guard\Token\PostAuthenticationGuardToken', 'the_firewall_key', 'the_firewall_key'];
-        $tests[] = ['Symfony\Component\Security\Guard\Token\PostAuthenticationGuardToken', 'the_firewall_key', 'different_key'];
-        $tests[] = ['Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken', 'the_firewall_key', 'the_firewall_key'];
+        // matching firewall => clear the token
+        $tests[] = ['the_firewall_key', 'the_firewall_key'];
+        $tests[] = ['the_firewall_key', 'different_key'];
+        $tests[] = ['the_firewall_key', 'the_firewall_key'];
 
         return $tests;
     }
@@ -153,14 +154,33 @@ class GuardAuthenticatorHandlerTest extends TestCase
         $handler->authenticateWithToken($this->token, $this->request, 'some_provider_key');
     }
 
+    /**
+     * @requires function \Symfony\Component\HttpFoundation\Request::setSessionFactory
+     */
+    public function testSessionIsNotInstantiatedOnStatelessFirewall()
+    {
+        $sessionFactory = $this->getMockBuilder(\stdClass::class)
+            ->setMethods(['__invoke'])
+            ->getMock();
+
+        $sessionFactory->expects($this->never())
+            ->method('__invoke');
+
+        $this->request->setSessionFactory($sessionFactory);
+
+        $handler = new GuardAuthenticatorHandler($this->tokenStorage, $this->dispatcher, ['stateless_provider_key']);
+        $handler->setSessionAuthenticationStrategy($this->sessionStrategy);
+        $handler->authenticateWithToken($this->token, $this->request, 'stateless_provider_key');
+    }
+
     protected function setUp(): void
     {
-        $this->tokenStorage = $this->getMockBuilder(TokenStorageInterface::class)->getMock();
-        $this->dispatcher = $this->getMockBuilder(EventDispatcherInterface::class)->getMock();
-        $this->token = $this->getMockBuilder(TokenInterface::class)->getMock();
+        $this->tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $this->dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->token = $this->createMock(TokenInterface::class);
         $this->request = new Request([], [], [], [], [], []);
-        $this->sessionStrategy = $this->getMockBuilder(SessionAuthenticationStrategyInterface::class)->getMock();
-        $this->guardAuthenticator = $this->getMockBuilder(AuthenticatorInterface::class)->getMock();
+        $this->sessionStrategy = $this->createMock(SessionAuthenticationStrategyInterface::class);
+        $this->guardAuthenticator = $this->createMock(AuthenticatorInterface::class);
     }
 
     protected function tearDown(): void
@@ -174,7 +194,7 @@ class GuardAuthenticatorHandlerTest extends TestCase
 
     private function configurePreviousSession()
     {
-        $session = $this->getMockBuilder('Symfony\Component\HttpFoundation\Session\SessionInterface')->getMock();
+        $session = $this->createMock(SessionInterface::class);
         $session->expects($this->any())
             ->method('getName')
             ->willReturn('test_session_name');

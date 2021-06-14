@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Intl\Tests;
 
+use Symfony\Component\Intl\Exception\MissingResourceException;
 use Symfony\Component\Intl\Scripts;
 
 /**
@@ -26,6 +27,7 @@ class ScriptsTest extends ResourceBundleTestCase
         'Aghb',
         'Ahom',
         'Arab',
+        'Aran',
         'Armi',
         'Armn',
         'Avst',
@@ -46,12 +48,14 @@ class ScriptsTest extends ResourceBundleTestCase
         'Cari',
         'Cham',
         'Cher',
+        'Chrs',
         'Cirt',
         'Copt',
         'Cprt',
         'Cyrl',
         'Cyrs',
         'Deva',
+        'Diak',
         'Dogr',
         'Dsrt',
         'Dupl',
@@ -96,6 +100,7 @@ class ScriptsTest extends ResourceBundleTestCase
         'Khar',
         'Khmr',
         'Khoj',
+        'Kits',
         'Knda',
         'Kore',
         'Kpel',
@@ -202,6 +207,7 @@ class ScriptsTest extends ResourceBundleTestCase
         'Wole',
         'Xpeo',
         'Xsux',
+        'Yezi',
         'Yiii',
         'Zanb',
         'Zinh',
@@ -275,7 +281,7 @@ class ScriptsTest extends ResourceBundleTestCase
 
     public function testGetNameWithInvalidScriptCode()
     {
-        $this->expectException('Symfony\Component\Intl\Exception\MissingResourceException');
+        $this->expectException(MissingResourceException::class);
         Scripts::getName('foo');
     }
 

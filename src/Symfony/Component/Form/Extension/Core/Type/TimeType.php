@@ -28,7 +28,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class TimeType extends AbstractType
 {
-    private static $widgets = [
+    private const WIDGETS = [
         'text' => 'Symfony\Component\Form\Extension\Core\Type\TextType',
         'choice' => 'Symfony\Component\Form\Extension\Core\Type\ChoiceType',
     ];
@@ -60,16 +60,18 @@ class TimeType extends AbstractType
         }
 
         if ('single_text' === $options['widget']) {
-            // handle seconds ignored by user's browser when with_seconds enabled
-            // https://codereview.chromium.org/450533009/
-            if ($options['with_seconds']) {
-                $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $e) {
-                    $data = $e->getData();
-                    if ($data && preg_match('/^\d{2}:\d{2}$/', $data)) {
-                        $e->setData($data.':00');
+            $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $e) use ($options) {
+                $data = $e->getData();
+                if ($data && preg_match('/^(?P<hours>\d{2}):(?P<minutes>\d{2})(?::(?P<seconds>\d{2})(?:\.\d+)?)?$/', $data, $matches)) {
+                    if ($options['with_seconds']) {
+                        // handle seconds ignored by user's browser when with_seconds enabled
+                        // https://codereview.chromium.org/450533009/
+                        $e->setData(sprintf('%s:%s:%s', $matches['hours'], $matches['minutes'], $matches['seconds'] ?? '00'));
+                    } else {
+                        $e->setData(sprintf('%s:%s', $matches['hours'], $matches['minutes']));
                     }
-                });
-            }
+                }
+            });
 
             if (null !== $options['reference_date']) {
                 $format = 'Y-m-d '.$format;
@@ -93,7 +95,17 @@ class TimeType extends AbstractType
             // so we need to handle the cascade setting here
             $emptyData = $builder->getEmptyData() ?: [];
 
-            if (isset($emptyData['hour'])) {
+            if ($emptyData instanceof \Closure) {
+                $lazyEmptyData = static function ($option) use ($emptyData) {
+                    return static function (FormInterface $form) use ($emptyData, $option) {
+                        $emptyData = $emptyData($form->getParent());
+
+                        return $emptyData[$option] ?? '';
+                    };
+                };
+
+                $hourOptions['empty_data'] = $lazyEmptyData('hour');
+            } elseif (isset($emptyData['hour'])) {
                 $hourOptions['empty_data'] = $emptyData['hour'];
             }
 
@@ -113,7 +125,7 @@ class TimeType extends AbstractType
                 $hours = $minutes = [];
 
                 foreach ($options['hours'] as $hour) {
-                    $hours[str_pad($hour, 2, '0', STR_PAD_LEFT)] = $hour;
+                    $hours[str_pad($hour, 2, '0', \STR_PAD_LEFT)] = $hour;
                 }
 
                 // Only pass a subset of the options to children
@@ -123,7 +135,7 @@ class TimeType extends AbstractType
 
                 if ($options['with_minutes']) {
                     foreach ($options['minutes'] as $minute) {
-                        $minutes[str_pad($minute, 2, '0', STR_PAD_LEFT)] = $minute;
+                        $minutes[str_pad($minute, 2, '0', \STR_PAD_LEFT)] = $minute;
                     }
 
                     $minuteOptions['choices'] = $minutes;
@@ -135,7 +147,7 @@ class TimeType extends AbstractType
                     $seconds = [];
 
                     foreach ($options['seconds'] as $second) {
-                        $seconds[str_pad($second, 2, '0', STR_PAD_LEFT)] = $second;
+                        $seconds[str_pad($second, 2, '0', \STR_PAD_LEFT)] = $second;
                     }
 
                     $secondOptions['choices'] = $seconds;
@@ -157,20 +169,24 @@ class TimeType extends AbstractType
                 }
             }
 
-            $builder->add('hour', self::$widgets[$options['widget']], $hourOptions);
+            $builder->add('hour', self::WIDGETS[$options['widget']], $hourOptions);
 
             if ($options['with_minutes']) {
-                if (isset($emptyData['minute'])) {
+                if ($emptyData instanceof \Closure) {
+                    $minuteOptions['empty_data'] = $lazyEmptyData('minute');
+                } elseif (isset($emptyData['minute'])) {
                     $minuteOptions['empty_data'] = $emptyData['minute'];
                 }
-                $builder->add('minute', self::$widgets[$options['widget']], $minuteOptions);
+                $builder->add('minute', self::WIDGETS[$options['widget']], $minuteOptions);
             }
 
             if ($options['with_seconds']) {
-                if (isset($emptyData['second'])) {
+                if ($emptyData instanceof \Closure) {
+                    $secondOptions['empty_data'] = $lazyEmptyData('second');
+                } elseif (isset($emptyData['second'])) {
                     $secondOptions['empty_data'] = $emptyData['second'];
                 }
-                $builder->add('second', self::$widgets[$options['widget']], $secondOptions);
+                $builder->add('second', self::WIDGETS[$options['widget']], $secondOptions);
             }
 
             $builder->addViewTransformer(new DateTimeToArrayTransformer($options['model_timezone'], $options['view_timezone'], $parts, 'text' === $options['widget'], $options['reference_date']));
@@ -204,7 +220,7 @@ class TimeType extends AbstractType
             'with_seconds' => $options['with_seconds'],
         ]);
 
-        // Change the input to a HTML5 time input if
+        // Change the input to an HTML5 time input if
         //  * the widget is set to "single_text"
         //  * the html5 is set to true
         if ($options['html5'] && 'single_text' === $options['widget']) {
@@ -311,7 +327,7 @@ class TimeType extends AbstractType
 
         $resolver->setDeprecated('model_timezone', function (Options $options, $modelTimezone): string {
             if (null !== $modelTimezone && $options['view_timezone'] !== $modelTimezone && null === $options['reference_date']) {
-                return sprintf('Using different values for the "model_timezone" and "view_timezone" options without configuring a reference date is deprecated since Symfony 4.4.');
+                return 'Using different values for the "model_timezone" and "view_timezone" options without configuring a reference date is deprecated since Symfony 4.4.';
             }
 
             return '';

@@ -18,8 +18,10 @@ use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactory;
+use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\RequestHandlerInterface;
+use Symfony\Component\Form\Util\ServerParams;
 
 /**
  * @author Bernhard Schussek <bschussek@gmail.com>
@@ -42,7 +44,21 @@ abstract class AbstractRequestHandlerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->serverParams = $this->getMockBuilder('Symfony\Component\Form\Util\ServerParams')->setMethods(['getNormalizedIniPostMaxSize', 'getContentLength'])->getMock();
+        $this->serverParams = new class() extends ServerParams {
+            public $contentLength;
+            public $postMaxSize = '';
+
+            public function getContentLength(): ?int
+            {
+                return $this->contentLength;
+            }
+
+            public function getNormalizedIniPostMaxSize(): string
+            {
+                return $this->postMaxSize;
+            }
+        };
+
         $this->requestHandler = $this->getRequestHandler();
         $this->factory = Forms::createFormFactoryBuilder()->getFormFactory();
         $this->request = null;
@@ -308,14 +324,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
     /**
      * @dataProvider getPostMaxSizeFixtures
      */
-    public function testAddFormErrorIfPostMaxSizeExceeded($contentLength, $iniMax, $shouldFail, array $errorParams = [])
+    public function testAddFormErrorIfPostMaxSizeExceeded(?int $contentLength, string $iniMax, bool $shouldFail, array $errorParams = [])
     {
-        $this->serverParams->expects($this->once())
-            ->method('getContentLength')
-            ->willReturn($contentLength);
-        $this->serverParams->expects($this->any())
-            ->method('getNormalizedIniPostMaxSize')
-            ->willReturn($iniMax);
+        $this->serverParams->contentLength = $contentLength;
+        $this->serverParams->postMaxSize = $iniMax;
 
         $options = ['post_max_size_message' => 'Max {{ max }}!'];
         $form = $this->factory->createNamed('name', 'Symfony\Component\Form\Extension\Core\Type\TextType', null, $options);
@@ -338,10 +350,10 @@ abstract class AbstractRequestHandlerTest extends TestCase
     public function getPostMaxSizeFixtures()
     {
         return [
-            [pow(1024, 3) + 1, '1G', true, ['{{ max }}' => '1G']],
-            [pow(1024, 3), '1G', false],
-            [pow(1024, 2) + 1, '1M', true, ['{{ max }}' => '1M']],
-            [pow(1024, 2), '1M', false],
+            [1024 ** 3 + 1, '1G', true, ['{{ max }}' => '1G']],
+            [1024 ** 3, '1G', false],
+            [1024 ** 2 + 1, '1M', true, ['{{ max }}' => '1M']],
+            [1024 ** 2, '1M', false],
             [1024 + 1, '1K', true, ['{{ max }}' => '1K']],
             [1024, '1K', false],
             [null, '1K', false],
@@ -371,14 +383,14 @@ abstract class AbstractRequestHandlerTest extends TestCase
     public function uploadFileErrorCodes()
     {
         return [
-            'no error' => [UPLOAD_ERR_OK, null],
-            'upload_max_filesize ini directive' => [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_INI_SIZE],
-            'MAX_FILE_SIZE from form' => [UPLOAD_ERR_FORM_SIZE, UPLOAD_ERR_FORM_SIZE],
-            'partially uploaded' => [UPLOAD_ERR_PARTIAL, UPLOAD_ERR_PARTIAL],
-            'no file upload' => [UPLOAD_ERR_NO_FILE, UPLOAD_ERR_NO_FILE],
-            'missing temporary directory' => [UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_NO_TMP_DIR],
-            'write failure' => [UPLOAD_ERR_CANT_WRITE, UPLOAD_ERR_CANT_WRITE],
-            'stopped by extension' => [UPLOAD_ERR_EXTENSION, UPLOAD_ERR_EXTENSION],
+            'no error' => [\UPLOAD_ERR_OK, null],
+            'upload_max_filesize ini directive' => [\UPLOAD_ERR_INI_SIZE, \UPLOAD_ERR_INI_SIZE],
+            'MAX_FILE_SIZE from form' => [\UPLOAD_ERR_FORM_SIZE, \UPLOAD_ERR_FORM_SIZE],
+            'partially uploaded' => [\UPLOAD_ERR_PARTIAL, \UPLOAD_ERR_PARTIAL],
+            'no file upload' => [\UPLOAD_ERR_NO_FILE, \UPLOAD_ERR_NO_FILE],
+            'missing temporary directory' => [\UPLOAD_ERR_NO_TMP_DIR, \UPLOAD_ERR_NO_TMP_DIR],
+            'write failure' => [\UPLOAD_ERR_CANT_WRITE, \UPLOAD_ERR_CANT_WRITE],
+            'stopped by extension' => [\UPLOAD_ERR_EXTENSION, \UPLOAD_ERR_EXTENSION],
         ];
     }
 
@@ -405,7 +417,7 @@ abstract class AbstractRequestHandlerTest extends TestCase
 
     protected function createBuilder($name, $compound = false, array $options = [])
     {
-        $builder = new FormBuilder($name, null, new EventDispatcher(), $this->getMockBuilder('Symfony\Component\Form\FormFactoryInterface')->getMock(), $options);
+        $builder = new FormBuilder($name, null, new EventDispatcher(), $this->createMock(FormFactoryInterface::class), $options);
         $builder->setCompound($compound);
 
         if ($compound) {

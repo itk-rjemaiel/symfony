@@ -14,7 +14,9 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\Controller;
 use Composer\Autoload\ClassLoader;
 use Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser;
 use Symfony\Bundle\FrameworkBundle\Tests\TestCase;
+use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\Kernel;
+use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
  * @group legacy
@@ -51,7 +53,7 @@ class ControllerNameParserTest extends TestCase
             $parser->parse('foo:');
             $this->fail('->parse() throws an \InvalidArgumentException if the controller is not an a:b:c string');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws an \InvalidArgumentException if the controller is not an a:b:c string');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws an \InvalidArgumentException if the controller is not an a:b:c string');
         }
     }
 
@@ -66,21 +68,21 @@ class ControllerNameParserTest extends TestCase
             $parser->build('TestBundle\FooBundle\Controller\DefaultController::index');
             $this->fail('->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         }
 
         try {
             $parser->build('TestBundle\FooBundle\Controller\Default::indexAction');
             $this->fail('->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         }
 
         try {
             $parser->build('Foo\Controller\DefaultController::indexAction');
             $this->fail('->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws an \InvalidArgumentException if the controller is not an aController::cAction string');
         }
     }
 
@@ -95,7 +97,7 @@ class ControllerNameParserTest extends TestCase
             $parser->parse($name);
             $this->fail('->parse() throws a \InvalidArgumentException if the class is found but does not exist');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws a \InvalidArgumentException if the class is found but does not exist');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws a \InvalidArgumentException if the class is found but does not exist');
         }
     }
 
@@ -125,7 +127,7 @@ class ControllerNameParserTest extends TestCase
             $parser->parse($bundleName);
             $this->fail('->parse() throws a \InvalidArgumentException if the bundle does not exist');
         } catch (\Exception $e) {
-            $this->assertInstanceOf('\InvalidArgumentException', $e, '->parse() throws a \InvalidArgumentException if the bundle does not exist');
+            $this->assertInstanceOf(\InvalidArgumentException::class, $e, '->parse() throws a \InvalidArgumentException if the bundle does not exist');
 
             if (false === $suggestedBundleName) {
                 // make sure we don't have a suggestion
@@ -151,7 +153,7 @@ class ControllerNameParserTest extends TestCase
             'FooBundle' => $this->getBundle('TestBundle\FooBundle', 'FooBundle'),
         ];
 
-        $kernel = $this->getMockBuilder('Symfony\Component\HttpKernel\KernelInterface')->getMock();
+        $kernel = $this->createMock(KernelInterface::class);
         $kernel
             ->expects($this->any())
             ->method('getBundle')
@@ -180,7 +182,7 @@ class ControllerNameParserTest extends TestCase
 
     private function getBundle($namespace, $name)
     {
-        $bundle = $this->getMockBuilder('Symfony\Component\HttpKernel\Bundle\BundleInterface')->getMock();
+        $bundle = $this->createMock(BundleInterface::class);
         $bundle->expects($this->any())->method('getName')->willReturn($name);
         $bundle->expects($this->any())->method('getNamespace')->willReturn($namespace);
 

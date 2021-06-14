@@ -24,11 +24,11 @@ use Symfony\Component\Mime\Part\TextPart;
  */
 class Email extends Message
 {
-    const PRIORITY_HIGHEST = 1;
-    const PRIORITY_HIGH = 2;
-    const PRIORITY_NORMAL = 3;
-    const PRIORITY_LOW = 4;
-    const PRIORITY_LOWEST = 5;
+    public const PRIORITY_HIGHEST = 1;
+    public const PRIORITY_HIGH = 2;
+    public const PRIORITY_NORMAL = 3;
+    public const PRIORITY_LOW = 4;
+    public const PRIORITY_LOWEST = 5;
 
     private const PRIORITY_MAP = [
         self::PRIORITY_HIGHEST => 'Highest',
@@ -266,7 +266,7 @@ class Email extends Message
      */
     public function getPriority(): int
     {
-        list($priority) = sscanf($this->getHeaders()->getHeaderBody('X-Priority'), '%[1-5]');
+        [$priority] = sscanf($this->getHeaders()->getHeaderBody('X-Priority') ?? '', '%[1-5]');
 
         return $priority ?? 3;
     }
@@ -399,6 +399,15 @@ class Email extends Message
         return $this->generateBody();
     }
 
+    public function ensureValidity()
+    {
+        if (null === $this->text && null === $this->html && !$this->attachments) {
+            throw new LogicException('A message must have a text or an HTML part or attachments.');
+        }
+
+        parent::ensureValidity();
+    }
+
     /**
      * Generates an AbstractPart based on the raw body of a message.
      *
@@ -421,10 +430,9 @@ class Email extends Message
      */
     private function generateBody(): AbstractPart
     {
+        $this->ensureValidity();
+
         [$htmlPart, $attachmentParts, $inlineParts] = $this->prepareParts();
-        if (null === $this->text && null === $this->html && !$attachmentParts) {
-            throw new LogicException('A message must have a text or an HTML part or attachments.');
-        }
 
         $part = null === $this->text ? null : new TextPart($this->text, $this->textCharset);
         if (null !== $htmlPart) {
@@ -483,6 +491,7 @@ class Email extends Message
                 $attachment['inline'] = true;
                 $inlineParts[$name] = $part = $this->createDataPart($attachment);
                 $html = str_replace('cid:'.$name, 'cid:'.$part->getContentId(), $html);
+                $part->setName($part->getContentId());
                 continue 2;
             }
             $attachmentParts[] = $this->createDataPart($attachment);

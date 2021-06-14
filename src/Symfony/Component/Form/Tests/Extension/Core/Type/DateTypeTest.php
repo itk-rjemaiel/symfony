@@ -13,11 +13,13 @@ namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
 use Symfony\Component\Form\ChoiceList\View\ChoiceView;
 use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Intl\Util\IntlTestHelper;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
 
 class DateTypeTest extends BaseTypeTest
 {
-    const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\DateType';
+    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\DateType';
 
     private $defaultTimezone;
     private $defaultLocale;
@@ -37,7 +39,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testInvalidWidgetOption()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'widget' => 'fake_widget',
         ]);
@@ -45,7 +47,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testInvalidInputOption()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'input' => 'fake_input',
         ]);
@@ -200,6 +202,32 @@ class DateTypeTest extends BaseTypeTest
 
         $this->assertEquals($output, $form->getData());
         $this->assertEquals('02.06.2010', $form->getViewData());
+    }
+
+    public function testArrayDateWithReferenceDoesUseReferenceTimeOnZero()
+    {
+        // we test against "de_DE", so we need the full implementation
+        IntlTestHelper::requireFullIntl($this, false);
+
+        \Locale::setDefault('de_DE');
+
+        $input = [
+            'day' => '0',
+            'month' => '0',
+            'year' => '0',
+        ];
+
+        $form = $this->factory->create(static::TESTED_TYPE, $input, [
+            'format' => \IntlDateFormatter::MEDIUM,
+            'html5' => false,
+            'model_timezone' => 'UTC',
+            'view_timezone' => 'Europe/Berlin',
+            'input' => 'array',
+            'widget' => 'single_text',
+        ]);
+
+        $this->assertSame($input, $form->getData());
+        $this->assertEquals('01.01.1970', $form->getViewData());
     }
 
     public function testSubmitFromText()
@@ -372,7 +400,7 @@ class DateTypeTest extends BaseTypeTest
      */
     public function testThrowExceptionIfFormatIsNoPattern()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'format' => '0',
             'html5' => false,
@@ -383,7 +411,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfFormatDoesNotContainYearMonthAndDay()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->expectExceptionMessage('The "format" option should contain the letters "y", "M" and "d". Its current value is "yy".');
         $this->factory->create(static::TESTED_TYPE, null, [
             'months' => [6, 7],
@@ -393,7 +421,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfFormatMissesYearMonthAndDayWithSingleTextWidget()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->expectExceptionMessage('The "format" option should contain the letters "y", "M" or "d". Its current value is "wrong".');
         $this->factory->create(static::TESTED_TYPE, null, [
             'widget' => 'single_text',
@@ -404,7 +432,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfFormatIsNoConstant()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'format' => 105,
         ]);
@@ -412,7 +440,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfFormatIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'format' => [],
         ]);
@@ -420,7 +448,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfYearsIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'years' => 'bad value',
         ]);
@@ -428,7 +456,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfMonthsIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'months' => 'bad value',
         ]);
@@ -436,7 +464,7 @@ class DateTypeTest extends BaseTypeTest
 
     public function testThrowExceptionIfDaysIsInvalid()
     {
-        $this->expectException('Symfony\Component\OptionsResolver\Exception\InvalidOptionsException');
+        $this->expectException(InvalidOptionsException::class);
         $this->factory->create(static::TESTED_TYPE, null, [
             'days' => 'bad value',
         ]);
@@ -732,7 +760,7 @@ class DateTypeTest extends BaseTypeTest
     {
         // Throws an exception if "data_class" option is not explicitly set
         // to null in the type
-        $this->assertInstanceOf('Symfony\Component\Form\FormInterface', $this->factory->create(static::TESTED_TYPE, new \DateTime()));
+        $this->assertInstanceOf(FormInterface::class, $this->factory->create(static::TESTED_TYPE, new \DateTime()));
     }
 
     public function testSingleTextWidgetShouldUseTheRightInputType()
@@ -925,19 +953,15 @@ class DateTypeTest extends BaseTypeTest
         $this->assertSame([$error], iterator_to_array($form->getErrors()));
     }
 
-    public function testYearsFor32BitsMachines()
+    public function testYears()
     {
-        if (4 !== PHP_INT_SIZE) {
-            $this->markTestSkipped('PHP 32 bit is required.');
-        }
-
         $view = $this->factory->create(static::TESTED_TYPE, null, [
-            'years' => range(1900, 2040),
+            'years' => [1900, 2000, 2040],
         ])
             ->createView();
 
         $listChoices = [];
-        foreach (range(1902, 2037) as $y) {
+        foreach ([1900, 2000, 2040] as $y) {
             $listChoices[] = new ChoiceView($y, $y, $y);
         }
 
@@ -1022,6 +1046,9 @@ class DateTypeTest extends BaseTypeTest
         ]);
         $form->submit(null);
 
+        if ($emptyData instanceof \Closure) {
+            $emptyData = $emptyData($form);
+        }
         $this->assertSame($emptyData, $form->getViewData());
         $this->assertEquals($expectedData, $form->getNormData());
         $this->assertEquals($expectedData, $form->getData());
@@ -1030,15 +1057,21 @@ class DateTypeTest extends BaseTypeTest
     public function provideEmptyData()
     {
         $expectedData = \DateTime::createFromFormat('Y-m-d H:i:s', '2018-11-11 00:00:00');
+        $lazyEmptyData = static function (FormInterface $form) {
+            return $form->getConfig()->getCompound() ? ['year' => '2018', 'month' => '11', 'day' => '11'] : '2018-11-11';
+        };
 
         return [
             'Simple field' => ['single_text', '2018-11-11', $expectedData],
             'Compound text fields' => ['text', ['year' => '2018', 'month' => '11', 'day' => '11'], $expectedData],
             'Compound choice fields' => ['choice', ['year' => '2018', 'month' => '11', 'day' => '11'], $expectedData],
+            'Simple field lazy' => ['single_text', $lazyEmptyData, $expectedData],
+            'Compound text fields lazy' => ['text', $lazyEmptyData, $expectedData],
+            'Compound choice fields lazy' => ['choice', $lazyEmptyData, $expectedData],
         ];
     }
 
-    public function testSubmitStringWithCustomInputFormat(): void
+    public function testSubmitStringWithCustomInputFormat()
     {
         $form = $this->factory->create(static::TESTED_TYPE, null, [
             'model_timezone' => 'UTC',

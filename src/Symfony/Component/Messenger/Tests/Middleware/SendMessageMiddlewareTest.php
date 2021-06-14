@@ -16,7 +16,6 @@ use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Event\SendMessageToTransportsEvent;
 use Symfony\Component\Messenger\Middleware\SendMessageMiddleware;
 use Symfony\Component\Messenger\Stamp\ReceivedStamp;
-use Symfony\Component\Messenger\Stamp\RedeliveryStamp;
 use Symfony\Component\Messenger\Stamp\SentStamp;
 use Symfony\Component\Messenger\Test\Middleware\MiddlewareTestCase;
 use Symfony\Component\Messenger\Tests\Fixtures\ChildDummyMessage;
@@ -32,7 +31,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     {
         $message = new DummyMessage('Hey');
         $envelope = new Envelope($message);
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['my_sender']], ['my_sender' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -50,8 +49,8 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     public function testItSendsTheMessageToMultipleSenders()
     {
         $envelope = new Envelope(new DummyMessage('Hey'));
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
-        $sender2 = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
+        $sender2 = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['foo', 'bar']], ['foo' => $sender, 'bar' => $sender2]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -84,35 +83,10 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
         $this->assertCount(2, $sentStamps);
     }
 
-    public function testItSendsToOnlyOneSenderOnRedelivery()
-    {
-        $envelope = new Envelope(new DummyMessage('Hey'), [new RedeliveryStamp(5, 'bar')]);
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
-        $sender2 = $this->getMockBuilder(SenderInterface::class)->getMock();
-
-        $sendersLocator = $this->createSendersLocator(
-            [DummyMessage::class => ['foo', 'bar']],
-            ['foo' => $sender, 'bar' => $sender2]
-        );
-
-        $middleware = new SendMessageMiddleware($sendersLocator);
-
-        $sender->expects($this->never())
-            ->method('send')
-        ;
-        $sender2->expects($this->once())
-            ->method('send')
-            ->willReturnArgument(0);
-
-        $mockStack = $this->getStackMock(false); // false because next should not be called
-        $envelope = $middleware->handle($envelope, $mockStack);
-        $this->assertCount(1, $envelope->all(SentStamp::class));
-    }
-
     public function testItSendsTheMessageToAssignedSenderWithPreWrappedMessage()
     {
         $envelope = new Envelope(new ChildDummyMessage('Hey'));
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['foo_sender']], ['foo_sender' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -126,7 +100,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     {
         $message = new ChildDummyMessage('Hey');
         $envelope = new Envelope($message);
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['foo_sender']], ['foo_sender' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -140,7 +114,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     {
         $message = new DummyMessage('Hey');
         $envelope = new Envelope($message);
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessageInterface::class => ['foo_sender']], ['foo_sender' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -154,7 +128,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     {
         $message = new DummyMessage('Hey');
         $envelope = new Envelope($message);
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator(['*' => ['foo_sender']], ['foo_sender' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -178,7 +152,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
     {
         $envelope = (new Envelope(new DummyMessage('Hey')))->with(new ReceivedStamp('transport'));
 
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator(['*' => ['foo']], ['foo' => $sender]);
         $middleware = new SendMessageMiddleware($sendersLocator);
@@ -199,8 +173,8 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
             ->method('dispatch')
             ->with(new SendMessageToTransportsEvent($envelope));
 
-        $sender1 = $this->getMockBuilder(SenderInterface::class)->getMock();
-        $sender2 = $this->getMockBuilder(SenderInterface::class)->getMock();
+        $sender1 = $this->createMock(SenderInterface::class);
+        $sender2 = $this->createMock(SenderInterface::class);
 
         $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['foo', 'bar']], ['foo' => $sender1, 'bar' => $sender2]);
         $middleware = new SendMessageMiddleware($sendersLocator, $dispatcher);
@@ -223,25 +197,7 @@ class SendMessageMiddlewareTest extends MiddlewareTestCase
         $middleware->handle($envelope, $this->getStackMock());
     }
 
-    public function testItDoesNotDispatchOnRedeliver()
-    {
-        $envelope = new Envelope(new DummyMessage('original envelope'));
-        $envelope = $envelope->with(new RedeliveryStamp(3, 'foo_sender'));
-
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
-        $dispatcher->expects($this->never())->method('dispatch');
-
-        $sender = $this->getMockBuilder(SenderInterface::class)->getMock();
-        $sender2 = $this->getMockBuilder(SenderInterface::class)->getMock();
-        $sender2->expects($this->once())->method('send')->willReturn(new Envelope(new \stdClass()));
-
-        $sendersLocator = $this->createSendersLocator([DummyMessage::class => ['foo']], ['foo' => $sender, 'foo_sender' => $sender2]);
-        $middleware = new SendMessageMiddleware($sendersLocator, $dispatcher);
-
-        $middleware->handle($envelope, $this->getStackMock(false));
-    }
-
-    private function createSendersLocator(array $sendersMap, array $senders)
+    private function createSendersLocator(array $sendersMap, array $senders): SendersLocator
     {
         $container = $this->createMock(ContainerInterface::class);
         $container->expects($this->any())

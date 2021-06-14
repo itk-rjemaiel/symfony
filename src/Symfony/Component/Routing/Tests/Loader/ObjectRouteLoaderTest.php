@@ -22,7 +22,7 @@ use Symfony\Component\Routing\Tests\Fixtures\TestObjectRouteLoader;
 class ObjectRouteLoaderTest extends TestCase
 {
     /**
-     * @expectedDeprecation Referencing service route loaders with a single colon is deprecated since Symfony 4.1. Use my_route_provider_service::loadRoutes instead.
+     * @expectedDeprecation Referencing object route loaders with a single colon is deprecated since Symfony 4.1. Use my_route_provider_service::loadRoutes instead.
      */
     public function testLoadCallsServiceAndReturnsCollectionWithLegacyNotation()
     {
@@ -71,9 +71,9 @@ class ObjectRouteLoaderTest extends TestCase
     /**
      * @dataProvider getBadResourceStrings
      */
-    public function testExceptionWithoutSyntax(string $resourceString): void
+    public function testExceptionWithoutSyntax(string $resourceString)
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $loader = new TestObjectRouteLoader();
         $loader->load($resourceString);
     }
@@ -92,7 +92,7 @@ class ObjectRouteLoaderTest extends TestCase
 
     public function testExceptionOnNoObjectReturned()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\TypeError::class);
         $loader = new TestObjectRouteLoader();
         $loader->loaderMap = ['my_service' => 'NOT_AN_OBJECT'];
         $loader->load('my_service::method');
@@ -100,7 +100,7 @@ class ObjectRouteLoaderTest extends TestCase
 
     public function testExceptionOnBadMethod()
     {
-        $this->expectException('BadMethodCallException');
+        $this->expectException(\BadMethodCallException::class);
         $loader = new TestObjectRouteLoader();
         $loader->loaderMap = ['my_service' => new \stdClass()];
         $loader->load('my_service::method');
@@ -108,8 +108,8 @@ class ObjectRouteLoaderTest extends TestCase
 
     public function testExceptionOnMethodNotReturningCollection()
     {
-        $this->expectException('LogicException');
-        $service = $this->getMockBuilder('stdClass')
+        $this->expectException(\LogicException::class);
+        $service = $this->getMockBuilder(\stdClass::class)
             ->setMethods(['loadRoutes'])
             ->getMock();
         $service->expects($this->once())

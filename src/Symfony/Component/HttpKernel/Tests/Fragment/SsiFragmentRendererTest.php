@@ -14,6 +14,7 @@ namespace Symfony\Component\HttpKernel\Tests\Fragment;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Controller\ControllerReference;
+use Symfony\Component\HttpKernel\Fragment\InlineFragmentRenderer;
 use Symfony\Component\HttpKernel\Fragment\SsiFragmentRenderer;
 use Symfony\Component\HttpKernel\HttpCache\Ssi;
 use Symfony\Component\HttpKernel\UriSigner;
@@ -58,7 +59,7 @@ class SsiFragmentRendererTest extends TestCase
 
     public function testRenderControllerReferenceWithoutSignerThrowsException()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $strategy = new SsiFragmentRenderer(new Ssi(), $this->getInlineStrategy());
 
         $request = Request::create('/');
@@ -70,7 +71,7 @@ class SsiFragmentRendererTest extends TestCase
 
     public function testRenderAltControllerReferenceWithoutSignerThrowsException()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\LogicException::class);
         $strategy = new SsiFragmentRenderer(new Ssi(), $this->getInlineStrategy());
 
         $request = Request::create('/');
@@ -82,7 +83,7 @@ class SsiFragmentRendererTest extends TestCase
 
     private function getInlineStrategy($called = false)
     {
-        $inline = $this->getMockBuilder('Symfony\Component\HttpKernel\Fragment\InlineFragmentRenderer')->disableOriginalConstructor()->getMock();
+        $inline = $this->createMock(InlineFragmentRenderer::class);
 
         if ($called) {
             $inline->expects($this->once())->method('render');

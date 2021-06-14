@@ -21,8 +21,10 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Controller\ArgumentResolverInterface;
 use Symfony\Component\HttpKernel\Controller\ControllerResolverInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ControllerDoesNotReturnResponseException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\HttpKernel;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -31,7 +33,7 @@ class HttpKernelTest extends TestCase
 {
     public function testHandleWhenControllerThrowsAnExceptionAndCatchIsTrue()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $kernel = $this->getHttpKernel(new EventDispatcher(), function () { throw new \RuntimeException(); });
 
         $kernel->handle(new Request(), HttpKernelInterface::MASTER_REQUEST, true);
@@ -39,7 +41,7 @@ class HttpKernelTest extends TestCase
 
     public function testHandleWhenControllerThrowsAnExceptionAndCatchIsFalseAndNoListenerIsRegistered()
     {
-        $this->expectException('RuntimeException');
+        $this->expectException(\RuntimeException::class);
         $kernel = $this->getHttpKernel(new EventDispatcher(), function () { throw new \RuntimeException(); });
 
         $kernel->handle(new Request(), HttpKernelInterface::MASTER_REQUEST, false);
@@ -49,7 +51,7 @@ class HttpKernelTest extends TestCase
     {
         $dispatcher = new EventDispatcher();
         $dispatcher->addListener(KernelEvents::EXCEPTION, function ($event) {
-            $event->setResponse(new Response($event->getException()->getMessage()));
+            $event->setResponse(new Response($event->getThrowable()->getMessage()));
         });
 
         $kernel = $this->getHttpKernel($dispatcher, function () { throw new \RuntimeException('foo'); });
@@ -96,7 +98,7 @@ class HttpKernelTest extends TestCase
     {
         $dispatcher = new EventDispatcher();
         $dispatcher->addListener(KernelEvents::EXCEPTION, function ($event) {
-            $event->setResponse(new Response($event->getException()->getMessage()));
+            $event->setResponse(new Response($event->getThrowable()->getMessage()));
         });
 
         $kernel = $this->getHttpKernel($dispatcher, function () { throw new MethodNotAllowedHttpException(['POST']); });
@@ -156,7 +158,7 @@ class HttpKernelTest extends TestCase
 
     public function testHandleWhenNoControllerIsFound()
     {
-        $this->expectException('Symfony\Component\HttpKernel\Exception\NotFoundHttpException');
+        $this->expectException(NotFoundHttpException::class);
         $dispatcher = new EventDispatcher();
         $kernel = $this->getHttpKernel($dispatcher, false);
 
@@ -303,9 +305,9 @@ class HttpKernelTest extends TestCase
     {
         $request = new Request();
 
-        $stack = $this->getMockBuilder('Symfony\Component\HttpFoundation\RequestStack')->setMethods(['push', 'pop'])->getMock();
-        $stack->expects($this->at(0))->method('push')->with($this->equalTo($request));
-        $stack->expects($this->at(1))->method('pop');
+        $stack = $this->getMockBuilder(RequestStack::class)->setMethods(['push', 'pop'])->getMock();
+        $stack->expects($this->once())->method('push')->with($this->equalTo($request));
+        $stack->expects($this->once())->method('pop');
 
         $dispatcher = new EventDispatcher();
         $kernel = $this->getHttpKernel($dispatcher, null, $stack);
@@ -315,7 +317,7 @@ class HttpKernelTest extends TestCase
 
     public function testInconsistentClientIpsOnMasterRequests()
     {
-        $this->expectException('Symfony\Component\HttpKernel\Exception\BadRequestHttpException');
+        $this->expectException(BadRequestHttpException::class);
         $request = new Request();
         $request->setTrustedProxies(['1.1.1.1'], Request::HEADER_X_FORWARDED_FOR | Request::HEADER_FORWARDED);
         $request->server->set('REMOTE_ADDR', '1.1.1.1');
@@ -339,13 +341,13 @@ class HttpKernelTest extends TestCase
             $controller = function () { return new Response('Hello'); };
         }
 
-        $controllerResolver = $this->getMockBuilder(ControllerResolverInterface::class)->getMock();
+        $controllerResolver = $this->createMock(ControllerResolverInterface::class);
         $controllerResolver
             ->expects($this->any())
             ->method('getController')
             ->willReturn($controller);
 
-        $argumentResolver = $this->getMockBuilder(ArgumentResolverInterface::class)->getMock();
+        $argumentResolver = $this->createMock(ArgumentResolverInterface::class);
         $argumentResolver
             ->expects($this->any())
             ->method('getArguments')

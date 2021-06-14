@@ -43,9 +43,9 @@ class ObjectLoaderTest extends TestCase
     /**
      * @dataProvider getBadResourceStrings
      */
-    public function testExceptionWithoutSyntax(string $resourceString): void
+    public function testExceptionWithoutSyntax(string $resourceString)
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $loader = new TestObjectLoader();
         $loader->load($resourceString);
     }
@@ -62,12 +62,9 @@ class ObjectLoaderTest extends TestCase
         ];
     }
 
-    /**
-     * @group legacy
-     */
     public function testExceptionOnNoObjectReturned()
     {
-        $this->expectException('LogicException');
+        $this->expectException(\TypeError::class);
         $loader = new TestObjectLoader();
         $loader->loaderMap = ['my_service' => 'NOT_AN_OBJECT'];
         $loader->load('my_service::method');
@@ -75,7 +72,7 @@ class ObjectLoaderTest extends TestCase
 
     public function testExceptionOnBadMethod()
     {
-        $this->expectException('BadMethodCallException');
+        $this->expectException(\BadMethodCallException::class);
         $loader = new TestObjectLoader();
         $loader->loaderMap = ['my_service' => new \stdClass()];
         $loader->load('my_service::method');
@@ -83,8 +80,8 @@ class ObjectLoaderTest extends TestCase
 
     public function testExceptionOnMethodNotReturningCollection()
     {
-        $this->expectException('LogicException');
-        $service = $this->getMockBuilder('stdClass')
+        $this->expectException(\LogicException::class);
+        $service = $this->getMockBuilder(\stdClass::class)
             ->setMethods(['loadRoutes'])
             ->getMock();
         $service->expects($this->once())

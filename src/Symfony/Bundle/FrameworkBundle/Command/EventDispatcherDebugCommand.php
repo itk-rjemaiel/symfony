@@ -50,7 +50,7 @@ class EventDispatcherDebugCommand extends Command
                 new InputOption('format', null, InputOption::VALUE_REQUIRED, 'The output format  (txt, xml, json, or md)', 'txt'),
                 new InputOption('raw', null, InputOption::VALUE_NONE, 'To output raw description'),
             ])
-            ->setDescription('Displays configured listeners for an application')
+            ->setDescription('Display configured listeners for an application')
             ->setHelp(<<<'EOF'
 The <info>%command.name%</info> command displays all configured listeners:
 
@@ -69,7 +69,7 @@ EOF
      *
      * @throws \LogicException
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
@@ -78,7 +78,7 @@ EOF
             if (!$this->dispatcher->hasListeners($event)) {
                 $io->getErrorStyle()->warning(sprintf('The event "%s" does not have any registered listeners.', $event));
 
-                return;
+                return 0;
             }
 
             $options = ['event' => $event];
@@ -89,5 +89,7 @@ EOF
         $options['raw_text'] = $input->getOption('raw');
         $options['output'] = $io;
         $helper->describe($io, $this->dispatcher, $options);
+
+        return 0;
     }
 }

@@ -14,6 +14,8 @@ namespace Symfony\Component\DependencyInjection\Tests\Compiler;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Config\Definition\Exception\InvalidTypeException;
 use Symfony\Component\Config\Definition\Exception\TreeWithoutRootNodeException;
 use Symfony\Component\DependencyInjection\Compiler\MergeExtensionConfigurationPass;
 use Symfony\Component\DependencyInjection\Compiler\RegisterEnvVarProcessorsPass;
@@ -44,7 +46,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testDefaultEnvIsValidatedInConfig()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('Invalid configuration for path "env_extension.string_node": "fail" is not a valid string');
         $container = new ContainerBuilder();
         $container->setParameter('env(STRING)', 'fail');
@@ -76,7 +78,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testEnvsAreValidatedInConfigWithInvalidPlaceholder()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidTypeException');
+        $this->expectException(InvalidTypeException::class);
         $this->expectExceptionMessage('Invalid type for path "env_extension.bool_node". Expected "bool", but got one of "bool", "int", "float", "string", "array".');
         $container = new ContainerBuilder();
         $container->registerExtension($ext = new EnvExtension());
@@ -91,7 +93,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testInvalidEnvInConfig()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidTypeException');
+        $this->expectException(InvalidTypeException::class);
         $this->expectExceptionMessage('Invalid type for path "env_extension.int_node". Expected "int", but got "array".');
         $container = new ContainerBuilder();
         $container->registerExtension(new EnvExtension());
@@ -104,8 +106,8 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testNulledEnvInConfig()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidTypeException');
-        $this->expectExceptionMessage('Invalid type for path "env_extension.int_node". Expected int, but got NULL.');
+        $this->expectException(InvalidTypeException::class);
+        $this->expectExceptionMessageMatches('/^Invalid type for path "env_extension\.int_node"\. Expected "?int"?, but got (NULL|"null")\.$/');
         $container = new ContainerBuilder();
         $container->setParameter('env(NULLED)', null);
         $container->registerExtension(new EnvExtension());
@@ -156,7 +158,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testEnvIsIncompatibleWithEnumNode()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('A dynamic value is not compatible with a "Symfony\Component\Config\Definition\EnumNode" node type at path "env_extension.enum_node".');
         $container = new ContainerBuilder();
         $container->registerExtension(new EnvExtension());
@@ -169,7 +171,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
 
     public function testEnvIsIncompatibleWithArrayNode()
     {
-        $this->expectException('Symfony\Component\Config\Definition\Exception\InvalidConfigurationException');
+        $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('A dynamic value is not compatible with a "Symfony\Component\Config\Definition\ArrayNode" node type at path "env_extension.simple_array_node".');
         $container = new ContainerBuilder();
         $container->registerExtension(new EnvExtension());
@@ -206,7 +208,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
         $this->assertSame($expected, $container->resolveEnvPlaceholders($ext->getConfig()));
     }
 
-    public function testEmptyEnvWhichCannotBeEmptyForScalarNode(): void
+    public function testEmptyEnvWhichCannotBeEmptyForScalarNode()
     {
         $container = new ContainerBuilder();
         $container->registerExtension($ext = new EnvExtension());
@@ -225,7 +227,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
      * @group legacy
      * @expectedDeprecation Setting path "env_extension.scalar_node_not_empty_validated" to an environment variable is deprecated since Symfony 4.3. Remove "cannotBeEmpty()", "validate()" or include a prefix/suffix value instead.
      */
-    public function testEmptyEnvWhichCannotBeEmptyForScalarNodeWithValidation(): void
+    public function testEmptyEnvWhichCannotBeEmptyForScalarNodeWithValidation()
     {
         $container = new ContainerBuilder();
         $container->registerExtension($ext = new EnvExtension());
@@ -238,7 +240,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
         $this->assertSame($expected, $container->resolveEnvPlaceholders($ext->getConfig()));
     }
 
-    public function testPartialEnvWhichCannotBeEmptyForScalarNode(): void
+    public function testPartialEnvWhichCannotBeEmptyForScalarNode()
     {
         $container = new ContainerBuilder();
         $container->registerExtension($ext = new EnvExtension());
@@ -251,7 +253,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
         $this->assertSame($expected, $container->resolveEnvPlaceholders($ext->getConfig()));
     }
 
-    public function testEnvWithVariableNode(): void
+    public function testEnvWithVariableNode()
     {
         $container = new ContainerBuilder();
         $container->registerExtension($ext = new EnvExtension());
@@ -268,7 +270,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
      * @group legacy
      * @expectedDeprecation A tree builder without a root node is deprecated since Symfony 4.2 and will not be supported anymore in 5.0.
      */
-    public function testConfigurationWithoutRootNode(): void
+    public function testConfigurationWithoutRootNode()
     {
         $container = new ContainerBuilder();
         $container->registerExtension(new EnvExtension(new EnvConfigurationWithoutRootNode()));
@@ -288,7 +290,7 @@ class ValidateEnvPlaceholdersPassTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testDiscardedEnvInConfig(): void
+    public function testDiscardedEnvInConfig()
     {
         $container = new ContainerBuilder();
         $container->setParameter('env(BOOLISH)', '1');

@@ -16,10 +16,11 @@ use Symfony\Component\Validator\Constraints\Composite;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\NotNull;
 use Symfony\Component\Validator\Constraints\Valid;
+use Symfony\Component\Validator\Exception\ConstraintDefinitionException;
 
 class ConcreteComposite extends Composite
 {
-    public $constraints;
+    public $constraints = [];
 
     protected function getCompositeOption(): string
     {
@@ -37,6 +38,30 @@ class ConcreteComposite extends Composite
  */
 class CompositeTest extends TestCase
 {
+    public function testConstraintHasDefaultGroup()
+    {
+        $constraint = new ConcreteComposite([
+            new NotNull(),
+            new NotBlank(),
+        ]);
+
+        $this->assertEquals(['Default'], $constraint->groups);
+        $this->assertEquals(['Default'], $constraint->constraints[0]->groups);
+        $this->assertEquals(['Default'], $constraint->constraints[1]->groups);
+    }
+
+    public function testNestedCompositeConstraintHasDefaultGroup()
+    {
+        $constraint = new ConcreteComposite([
+            new ConcreteComposite(),
+            new ConcreteComposite(),
+        ]);
+
+        $this->assertEquals(['Default'], $constraint->groups);
+        $this->assertEquals(['Default'], $constraint->constraints[0]->groups);
+        $this->assertEquals(['Default'], $constraint->constraints[1]->groups);
+    }
+
     public function testMergeNestedGroupsIfNoExplicitParentGroup()
     {
         $constraint = new ConcreteComposite([
@@ -81,7 +106,7 @@ class CompositeTest extends TestCase
 
     public function testFailIfExplicitNestedGroupsNotSubsetOfExplicitParentGroups()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
+        $this->expectException(ConstraintDefinitionException::class);
         new ConcreteComposite([
             'constraints' => [
                 new NotNull(['groups' => ['Default', 'Foobar']]),
@@ -114,7 +139,7 @@ class CompositeTest extends TestCase
 
     public function testFailIfNoConstraint()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
+        $this->expectException(ConstraintDefinitionException::class);
         new ConcreteComposite([
             new NotNull(['groups' => 'Default']),
             'NotBlank',
@@ -123,7 +148,7 @@ class CompositeTest extends TestCase
 
     public function testFailIfNoConstraintObject()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
+        $this->expectException(ConstraintDefinitionException::class);
         new ConcreteComposite([
             new NotNull(['groups' => 'Default']),
             new \ArrayObject(),
@@ -132,7 +157,7 @@ class CompositeTest extends TestCase
 
     public function testValidCantBeNested()
     {
-        $this->expectException('Symfony\Component\Validator\Exception\ConstraintDefinitionException');
+        $this->expectException(ConstraintDefinitionException::class);
         new ConcreteComposite([
             new Valid(),
         ]);

@@ -4,10 +4,12 @@ namespace Symfony\Bundle\FrameworkBundle\Tests\CacheWarmer;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\Common\Annotations\CachedReader;
+use Doctrine\Common\Annotations\PsrCachedReader;
 use Doctrine\Common\Annotations\Reader;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bundle\FrameworkBundle\CacheWarmer\AnnotationsCacheWarmer;
 use Symfony\Bundle\FrameworkBundle\Tests\TestCase;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Cache\Adapter\NullAdapter;
 use Symfony\Component\Cache\Adapter\PhpArrayAdapter;
 use Symfony\Component\Cache\DoctrineProvider;
@@ -42,10 +44,16 @@ class AnnotationsCacheWarmerTest extends TestCase
         $this->assertFileExists($cacheFile);
 
         // Assert cache is valid
-        $reader = new CachedReader(
-            $this->getReadOnlyReader(),
-            new DoctrineProvider(new PhpArrayAdapter($cacheFile, new NullAdapter()))
-        );
+        $reader = class_exists(PsrCachedReader::class)
+            ? new PsrCachedReader(
+                $this->getReadOnlyReader(),
+                new PhpArrayAdapter($cacheFile, new NullAdapter())
+            )
+            : new CachedReader(
+                $this->getReadOnlyReader(),
+                new DoctrineProvider(new PhpArrayAdapter($cacheFile, new NullAdapter()))
+            )
+        ;
         $refClass = new \ReflectionClass($this);
         $reader->getClassAnnotations($refClass);
         $reader->getMethodAnnotations($refClass->getMethod(__FUNCTION__));
@@ -60,12 +68,21 @@ class AnnotationsCacheWarmerTest extends TestCase
         $warmer = new AnnotationsCacheWarmer($reader, $cacheFile, null, true);
         $warmer->warmUp($this->cacheDir);
         $this->assertFileExists($cacheFile);
+
         // Assert cache is valid
-        $reader = new CachedReader(
-            $this->getReadOnlyReader(),
-            new DoctrineProvider(new PhpArrayAdapter($cacheFile, new NullAdapter())),
-            true
-        );
+        $phpArrayAdapter = new PhpArrayAdapter($cacheFile, new NullAdapter());
+        $reader = class_exists(PsrCachedReader::class)
+            ? new PsrCachedReader(
+                $this->getReadOnlyReader(),
+                $phpArrayAdapter,
+                true
+            )
+            : new CachedReader(
+                $this->getReadOnlyReader(),
+                new DoctrineProvider($phpArrayAdapter),
+                true
+            )
+        ;
         $refClass = new \ReflectionClass($this);
         $reader->getClassAnnotations($refClass);
         $reader->getMethodAnnotations($refClass->getMethod(__FUNCTION__));
@@ -120,12 +137,41 @@ class AnnotationsCacheWarmerTest extends TestCase
         spl_autoload_unregister($classLoader);
     }
 
+    public function testWarmupRemoveCacheMisses()
+    {
+        $cacheFile = tempnam($this->cacheDir, __FUNCTION__);
+        $warmer = $this->getMockBuilder(AnnotationsCacheWarmer::class)
+            ->setConstructorArgs([new AnnotationReader(), $cacheFile])
+            ->setMethods(['doWarmUp'])
+            ->getMock();
+
+        $warmer->method('doWarmUp')->willReturnCallback(function ($cacheDir, ArrayAdapter $arrayAdapter) {
+            $arrayAdapter->getItem('foo_miss');
+
+            $item = $arrayAdapter->getItem('bar_hit');
+            $item->set('data');
+            $arrayAdapter->save($item);
+
+            $item = $arrayAdapter->getItem('baz_hit_null');
+            $item->set(null);
+            $arrayAdapter->save($item);
+
+            return true;
+        });
+
+        $warmer->warmUp($this->cacheDir);
+        $data = include $cacheFile;
+
+        $this->assertCount(1, $data[0]);
+        $this->assertTrue(isset($data[0]['bar_hit']));
+    }
+
     /**
      * @return MockObject|Reader
      */
     private function getReadOnlyReader()
     {
-        $readerMock = $this->getMockBuilder('Doctrine\Common\Annotations\Reader')->getMock();
+        $readerMock = $this->createMock(Reader::class);
         $readerMock->expects($this->exactly(0))->method('getClassAnnotations');
         $readerMock->expects($this->exactly(0))->method('getClassAnnotation');
         $readerMock->expects($this->exactly(0))->method('getMethodAnnotations');

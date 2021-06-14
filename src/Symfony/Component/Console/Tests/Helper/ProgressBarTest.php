@@ -187,7 +187,6 @@ class ProgressBarTest extends TestCase
     {
         $expected =
             '  0/10 [>---------------------------]   0%'.
-            $this->generateOutput(' 10/10 [============================] 100%').
             $this->generateOutput(' 10/10 [============================] 100%')
         ;
 
@@ -296,7 +295,6 @@ class ProgressBarTest extends TestCase
         rewind($output->getStream());
         $this->assertEquals(
             '  0/50 [>---------------------------]   0%'.
-            $this->generateOutput('  0/50 [>---------------------------]   0%').
             $this->generateOutput('  1/50 [>---------------------------]   2%').
             $this->generateOutput('  2/50 [=>--------------------------]   4%'),
             stream_get_contents($output->getStream())
@@ -318,7 +316,6 @@ class ProgressBarTest extends TestCase
         rewind($output->getStream());
         $this->assertEquals(
             '  0/50 [>---------------------------]   0%'.
-            $this->generateOutput('  0/50 [>---------------------------]   0%').
             $this->generateOutput('  1/50 [>---------------------------]   2%').
             $this->generateOutput('  2/50 [=>--------------------------]'),
             stream_get_contents($output->getStream())
@@ -339,12 +336,36 @@ class ProgressBarTest extends TestCase
 
         rewind($output->getStream());
         $this->assertEquals(
-            '  0/50 [>---------------------------]   0%'.PHP_EOL.
-            "\x1b[1A\x1b[0J".'  0/50 [>---------------------------]   0%'.PHP_EOL.
-            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.PHP_EOL.
-            "\x1b[1A\x1b[0J".'  2/50 [=>--------------------------]   4%'.PHP_EOL,
+            '  0/50 [>---------------------------]   0%'.\PHP_EOL.
+            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.\PHP_EOL.
+            "\x1b[1A\x1b[0J".'  2/50 [=>--------------------------]   4%'.\PHP_EOL,
             stream_get_contents($output->getStream())
         );
+    }
+
+    public function testOverwriteWithAnsiSectionOutput()
+    {
+        // output has 43 visible characters plus 2 invisible ANSI characters
+        putenv('COLUMNS=43');
+        $sections = [];
+        $stream = $this->getOutputStream(true);
+        $output = new ConsoleSectionOutput($stream->getStream(), $sections, $stream->getVerbosity(), $stream->isDecorated(), new OutputFormatter());
+
+        $bar = new ProgressBar($output, 50, 0);
+        $bar->setFormat(" \033[44;37m%current%/%max%\033[0m [%bar%] %percent:3s%%");
+        $bar->start();
+        $bar->display();
+        $bar->advance();
+        $bar->advance();
+
+        rewind($output->getStream());
+        $this->assertSame(
+            " \033[44;37m 0/50\033[0m [>---------------------------]   0%".\PHP_EOL.
+            "\x1b[1A\x1b[0J"." \033[44;37m 1/50\033[0m [>---------------------------]   2%".\PHP_EOL.
+            "\x1b[1A\x1b[0J"." \033[44;37m 2/50\033[0m [=>--------------------------]   4%".\PHP_EOL,
+            stream_get_contents($output->getStream())
+        );
+        putenv('COLUMNS=120');
     }
 
     public function testOverwriteMultipleProgressBarsWithSectionOutputs()
@@ -366,13 +387,41 @@ class ProgressBarTest extends TestCase
         rewind($stream->getStream());
 
         $this->assertEquals(
-            '  0/50 [>---------------------------]   0%'.PHP_EOL.
-            '  0/50 [>---------------------------]   0%'.PHP_EOL.
-            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.PHP_EOL.
-            "\x1b[2A\x1b[0J".'  1/50 [>---------------------------]   2%'.PHP_EOL.
-            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.PHP_EOL.
-            '  1/50 [>---------------------------]   2%'.PHP_EOL,
+            '  0/50 [>---------------------------]   0%'.\PHP_EOL.
+            '  0/50 [>---------------------------]   0%'.\PHP_EOL.
+            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.\PHP_EOL.
+            "\x1b[2A\x1b[0J".'  1/50 [>---------------------------]   2%'.\PHP_EOL.
+            "\x1b[1A\x1b[0J".'  1/50 [>---------------------------]   2%'.\PHP_EOL.
+            '  1/50 [>---------------------------]   2%'.\PHP_EOL,
             stream_get_contents($stream->getStream())
+        );
+    }
+
+    public function testOverwriteWithSectionOutputWithNewlinesInMessage()
+    {
+        $sections = [];
+        $stream = $this->getOutputStream(true);
+        $output = new ConsoleSectionOutput($stream->getStream(), $sections, $stream->getVerbosity(), $stream->isDecorated(), new OutputFormatter());
+
+        ProgressBar::setFormatDefinition('test', '%current%/%max% [%bar%] %percent:3s%% %message% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.');
+
+        $bar = new ProgressBar($output, 50, 0);
+        $bar->setFormat('test');
+        $bar->start();
+        $bar->display();
+        $bar->setMessage("Twas brillig, and the slithy toves. Did gyre and gimble in the wabe: All mimsy were the borogoves, And the mome raths outgrabe.\nBeware the Jabberwock, my son! The jaws that bite, the claws that catch! Beware the Jubjub bird, and shun The frumious Bandersnatch!");
+        $bar->advance();
+        $bar->setMessage("He took his vorpal sword in hand; Long time the manxome foe he sought— So rested he by the Tumtum tree And stood awhile in thought.\nAnd, as in uffish thought he stood, The Jabberwock, with eyes of flame, Came whiffling through the tulgey wood, And burbled as it came!");
+        $bar->advance();
+
+        rewind($output->getStream());
+        $this->assertEquals(
+            ' 0/50 [>]   0% %message% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.\PHP_EOL.
+            "\x1b[6A\x1b[0J 1/50 [>]   2% Twas brillig, and the slithy toves. Did gyre and gimble in the wabe: All mimsy were the borogoves, And the mome raths outgrabe.
+Beware the Jabberwock, my son! The jaws that bite, the claws that catch! Beware the Jubjub bird, and shun The frumious Bandersnatch! Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.".\PHP_EOL.
+            "\x1b[6A\x1b[0J 2/50 [>]   4% He took his vorpal sword in hand; Long time the manxome foe he sought— So rested he by the Tumtum tree And stood awhile in thought.
+And, as in uffish thought he stood, The Jabberwock, with eyes of flame, Came whiffling through the tulgey wood, And burbled as it came! Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.".\PHP_EOL,
+            stream_get_contents($output->getStream())
         );
     }
 
@@ -397,12 +446,12 @@ class ProgressBarTest extends TestCase
 
         rewind($stream->getStream());
 
-        $this->assertEquals('  0/50 [>---------------------------]   0%'.PHP_EOL.
-            ' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.PHP_EOL.
-            "\x1b[4A\x1b[0J".' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.PHP_EOL.
-            "\x1b[3A\x1b[0J".'  1/50 [>---------------------------]   2%'.PHP_EOL.
-            ' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.PHP_EOL.
-            "\x1b[3A\x1b[0J".' 1/50 [>]   2% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.PHP_EOL,
+        $this->assertEquals('  0/50 [>---------------------------]   0%'.\PHP_EOL.
+            ' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.\PHP_EOL.
+            "\x1b[4A\x1b[0J".' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.\PHP_EOL.
+            "\x1b[3A\x1b[0J".'  1/50 [>---------------------------]   2%'.\PHP_EOL.
+            ' 0/50 [>]   0% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.\PHP_EOL.
+            "\x1b[3A\x1b[0J".' 1/50 [>]   2% Fruitcake marzipan toffee. Cupcake gummi bears tart dessert ice cream chupa chups cupcake chocolate bar sesame snaps. Croissant halvah cookie jujubes powder macaroon. Fruitcake bear claw bonbon jelly beans oat cake pie muffin Fruitcake marzipan toffee.'.\PHP_EOL,
             stream_get_contents($stream->getStream())
         );
     }
@@ -434,7 +483,6 @@ class ProgressBarTest extends TestCase
         rewind($output->getStream());
         $this->assertEquals(
             '  0/50 [>---------------------------]   0%'.
-            $this->generateOutput('  0/50 [>---------------------------]   0%').
             $this->generateOutput('  1/50 [>---------------------------]   2%').
             $this->generateOutput(' 15/50 [========>-------------------]  30%').
             $this->generateOutput(' 25/50 [==============>-------------]  50%'),
@@ -487,7 +535,7 @@ class ProgressBarTest extends TestCase
     public function testRedrawFrequencyIsAtLeastOneIfSmallerOneGiven()
     {
         $bar = new ProgressBar($output = $this->getOutputStream(), 0, 0);
-        $bar->setRedrawFrequency(0.9);
+        $bar->setRedrawFrequency(0);
         $bar->start();
         $bar->advance();
 
@@ -541,7 +589,6 @@ class ProgressBarTest extends TestCase
         rewind($output->getStream());
         $this->assertEquals(
             '   0/200 [>---------------------------]   0%'.
-            $this->generateOutput('   0/200 [>---------------------------]   0%').
             $this->generateOutput(' 199/200 [===========================>]  99%').
             $this->generateOutput(' 200/200 [============================] 100%'),
             stream_get_contents($output->getStream())
@@ -561,16 +608,16 @@ class ProgressBarTest extends TestCase
 
         rewind($output->getStream());
         $this->assertEquals(
-            '   0/200 [>---------------------------]   0%'.PHP_EOL.
-            '  20/200 [==>-------------------------]  10%'.PHP_EOL.
-            '  40/200 [=====>----------------------]  20%'.PHP_EOL.
-            '  60/200 [========>-------------------]  30%'.PHP_EOL.
-            '  80/200 [===========>----------------]  40%'.PHP_EOL.
-            ' 100/200 [==============>-------------]  50%'.PHP_EOL.
-            ' 120/200 [================>-----------]  60%'.PHP_EOL.
-            ' 140/200 [===================>--------]  70%'.PHP_EOL.
-            ' 160/200 [======================>-----]  80%'.PHP_EOL.
-            ' 180/200 [=========================>--]  90%'.PHP_EOL.
+            '   0/200 [>---------------------------]   0%'.\PHP_EOL.
+            '  20/200 [==>-------------------------]  10%'.\PHP_EOL.
+            '  40/200 [=====>----------------------]  20%'.\PHP_EOL.
+            '  60/200 [========>-------------------]  30%'.\PHP_EOL.
+            '  80/200 [===========>----------------]  40%'.\PHP_EOL.
+            ' 100/200 [==============>-------------]  50%'.\PHP_EOL.
+            ' 120/200 [================>-----------]  60%'.\PHP_EOL.
+            ' 140/200 [===================>--------]  70%'.\PHP_EOL.
+            ' 160/200 [======================>-----]  80%'.\PHP_EOL.
+            ' 180/200 [=========================>--]  90%'.\PHP_EOL.
             ' 200/200 [============================] 100%',
             stream_get_contents($output->getStream())
         );
@@ -587,8 +634,8 @@ class ProgressBarTest extends TestCase
 
         rewind($output->getStream());
         $this->assertEquals(
-            '  0/50 [>---------------------------]   0%'.PHP_EOL.
-            ' 25/50 [==============>-------------]  50%'.PHP_EOL.
+            '  0/50 [>---------------------------]   0%'.\PHP_EOL.
+            ' 25/50 [==============>-------------]  50%'.\PHP_EOL.
             ' 50/50 [============================] 100%',
             stream_get_contents($output->getStream())
         );
@@ -602,7 +649,7 @@ class ProgressBarTest extends TestCase
 
         rewind($output->getStream());
         $this->assertEquals(
-            '    0 [>---------------------------]'.PHP_EOL.
+            '    0 [>---------------------------]'.\PHP_EOL.
             '    1 [->--------------------------]',
             stream_get_contents($output->getStream())
         );
@@ -878,7 +925,7 @@ class ProgressBarTest extends TestCase
         ];
     }
 
-    public function testIterate(): void
+    public function testIterate()
     {
         $bar = new ProgressBar($output = $this->getOutputStream(), 0, 0);
 
@@ -888,13 +935,12 @@ class ProgressBarTest extends TestCase
         $this->assertEquals(
             ' 0/2 [>---------------------------]   0%'.
             $this->generateOutput(' 1/2 [==============>-------------]  50%').
-            $this->generateOutput(' 2/2 [============================] 100%').
             $this->generateOutput(' 2/2 [============================] 100%'),
             stream_get_contents($output->getStream())
         );
     }
 
-    public function testIterateUncountable(): void
+    public function testIterateUncountable()
     {
         $bar = new ProgressBar($output = $this->getOutputStream(), 0, 0);
 
@@ -943,23 +989,47 @@ class ProgressBarTest extends TestCase
         putenv('COLUMNS=120');
     }
 
-    public function testForceRedrawSlowerThan(): void
+    public function testMinAndMaxSecondsBetweenRedraws()
+    {
+        $bar = new ProgressBar($output = $this->getOutputStream());
+        $bar->setRedrawFrequency(1);
+        $bar->minSecondsBetweenRedraws(5);
+        $bar->maxSecondsBetweenRedraws(10);
+
+        $bar->start();
+        $bar->setProgress(1);
+        sleep(10);
+        $bar->setProgress(2);
+        sleep(20);
+        $bar->setProgress(3);
+
+        rewind($output->getStream());
+        $this->assertEquals(
+            '    0 [>---------------------------]'.
+            $this->generateOutput('    2 [-->-------------------------]').
+            $this->generateOutput('    3 [--->------------------------]'),
+            stream_get_contents($output->getStream())
+        );
+    }
+
+    public function testMaxSecondsBetweenRedraws()
     {
         $bar = new ProgressBar($output = $this->getOutputStream(), 0, 0);
         $bar->setRedrawFrequency(4); // disable step based redraws
         $bar->start();
+
         $bar->setProgress(1); // No treshold hit, no redraw
-        $bar->forceRedrawSlowerThan(2);
+        $bar->maxSecondsBetweenRedraws(2);
         sleep(1);
-        $bar->setProgress(2); // Still no redraw because redraw is forced after 2 seconds only
+        $bar->setProgress(2); // Still no redraw because it takes 2 seconds for a redraw
         sleep(1);
         $bar->setProgress(3); // 1+1 = 2 -> redraw finally
         $bar->setProgress(4); // step based redraw freq hit, redraw even without sleep
         $bar->setProgress(5); // No treshold hit, no redraw
-        $bar->preventRedrawFasterThan(3);
+        $bar->maxSecondsBetweenRedraws(3);
         sleep(2);
         $bar->setProgress(6); // No redraw even though 2 seconds passed. Throttling has priority
-        $bar->preventRedrawFasterThan(2);
+        $bar->maxSecondsBetweenRedraws(2);
         $bar->setProgress(7); // Throttling relaxed, draw
 
         rewind($output->getStream());
@@ -972,16 +1042,16 @@ class ProgressBarTest extends TestCase
         );
     }
 
-    public function testPreventRedrawFasterThan()
+    public function testMinSecondsBetweenRedraws()
     {
         $bar = new ProgressBar($output = $this->getOutputStream(), 0, 0);
         $bar->setRedrawFrequency(1);
-        $bar->preventRedrawFasterThan(1);
+        $bar->minSecondsBetweenRedraws(1);
         $bar->start();
         $bar->setProgress(1); // Too fast, should not draw
         sleep(1);
         $bar->setProgress(2); // 1 second passed, draw
-        $bar->preventRedrawFasterThan(2);
+        $bar->minSecondsBetweenRedraws(2);
         sleep(1);
         $bar->setProgress(3); // 1 second passed but we changed threshold, should not draw
         sleep(1);
@@ -993,6 +1063,20 @@ class ProgressBarTest extends TestCase
             '    0 [>---------------------------]'.
             $this->generateOutput('    2 [-->-------------------------]').
             $this->generateOutput('    4 [---->-----------------------]'),
+            stream_get_contents($output->getStream())
+        );
+    }
+
+    public function testNoWriteWhenMessageIsSame()
+    {
+        $bar = new ProgressBar($output = $this->getOutputStream(), 2);
+        $bar->start();
+        $bar->advance();
+        $bar->display();
+        rewind($output->getStream());
+        $this->assertEquals(
+            ' 0/2 [>---------------------------]   0%'.
+            $this->generateOutput(' 1/2 [==============>-------------]  50%'),
             stream_get_contents($output->getStream())
         );
     }

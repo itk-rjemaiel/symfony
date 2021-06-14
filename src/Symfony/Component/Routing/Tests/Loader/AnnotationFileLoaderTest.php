@@ -44,7 +44,7 @@ class AnnotationFileLoaderTest extends AbstractAnnotationLoaderTest
 
     public function testLoadFileWithoutStartTag()
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Did you forgot to add the "<?php" start tag at the beginning of the file?');
         $this->loader->load(__DIR__.'/../Fixtures/OtherAnnotatedClasses/NoStartTagClass.php');
     }
@@ -59,9 +59,6 @@ class AnnotationFileLoaderTest extends AbstractAnnotationLoaderTest
         $this->loader->load(__DIR__.'/../Fixtures/OtherAnnotatedClasses/VariadicClass.php');
     }
 
-    /**
-     * @requires PHP 7.0
-     */
     public function testLoadAnonymousClass()
     {
         $this->reader->expects($this->never())->method('getClassAnnotation');
@@ -87,5 +84,73 @@ class AnnotationFileLoaderTest extends AbstractAnnotationLoaderTest
 
         $this->assertTrue($this->loader->supports($fixture, 'annotation'), '->supports() checks the resource type if specified');
         $this->assertFalse($this->loader->supports($fixture, 'foo'), '->supports() checks the resource type if specified');
+    }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testLoadAttributesClassAfterComma()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamAfterCommaController.php');
+    }
+
+    public function testLoadAttributesInlineClassAfterComma()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamInlineAfterCommaController.php');
+    }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testLoadAttributesQuotedClassAfterComma()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamQuotedAfterCommaController.php');
+    }
+
+    public function testLoadAttributesInlineQuotedClassAfterComma()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamInlineQuotedAfterCommaController.php');
+    }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testLoadAttributesClassAfterParenthesis()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamAfterParenthesisController.php');
+    }
+
+    public function testLoadAttributesInlineClassAfterParenthesis()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamInlineAfterParenthesisController.php');
+    }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testLoadAttributesQuotedClassAfterParenthesis()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamQuotedAfterParenthesisController.php');
+    }
+
+    public function testLoadAttributesInlineQuotedClassAfterParenthesis()
+    {
+        $this->reader->expects($this->once())->method('getClassAnnotation');
+
+        $this->loader->load(__DIR__.'/../Fixtures/AttributesFixtures/AttributesClassParamInlineQuotedAfterParenthesisController.php');
     }
 }
